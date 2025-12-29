@@ -20,15 +20,15 @@ interface AuthContextType {
   session: Session | null;
   profile: DJProfile | null;
   loading: boolean;
+  profileLoading: boolean;
   signUp: (email: string, password: string, djName: string, phone: string, fullName?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<DJProfile | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Singleton Supabase client
 let supabaseInstance: SupabaseClient | null = null;
 
 function getSupabaseClient(): SupabaseClient {
@@ -50,34 +50,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<DJProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
 
-  // Fetch profile from database
+  // Fetch profile - returns the profile or null
   const fetchProfile = useCallback(async (userId: string): Promise<DJProfile | null> => {
+    setProfileLoading(true);
+    
     try {
       const supabase = getSupabaseClient();
-      console.log("[Auth] Fetching profile for user:", userId);
+      console.log("[Auth] Fetching profile for user_id:", userId);
       
       const { data, error } = await supabase
         .from("dj_profiles")
         .select("*")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        console.error("[Auth] Profile fetch error:", error);
+        console.error("[Auth] Profile fetch error:", error.message);
+        setProfile(null);
         return null;
       }
 
       if (data) {
-        console.log("[Auth] Profile loaded:", data.dj_name);
+        console.log("[Auth] Profile found:", data.dj_name, "| ID:", data.id);
         setProfile(data);
         return data;
+      } else {
+        console.warn("[Auth] No profile found for user_id:", userId);
+        setProfile(null);
+        return null;
       }
-      
-      return null;
     } catch (error) {
       console.error("[Auth] Profile fetch exception:", error);
+      setProfile(null);
       return null;
+    } finally {
+      setProfileLoading(false);
     }
   }, []);
 
@@ -86,20 +95,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = getSupabaseClient();
     let mounted = true;
 
-    // Get initial session
     const initializeAuth = async () => {
       try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        console.log("[Auth] Initializing...");
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("[Auth] Session error:", error);
+        }
         
         if (!mounted) return;
         
         if (currentSession?.user) {
-          console.log("[Auth] Initial session found for:", currentSession.user.email);
+          console.log("[Auth] Session found for:", currentSession.user.email);
           setSession(currentSession);
           setUser(currentSession.user);
           await fetchProfile(currentSession.user.id);
         } else {
-          console.log("[Auth] No initial session");
+          console.log("[Auth] No session found");
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -107,7 +120,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error("[Auth] Init error:", error);
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          console.log("[Auth] Init complete, loading = false");
+        }
       }
     };
 
@@ -116,21 +132,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        console.log("[Auth] State change:", event);
+        console.log("[Auth] Event:", event);
         
         if (!mounted) return;
+
+        if (event === "SIGNED_OUT") {
+          console.log("[Auth] User signed out, clearing state");
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
 
         if (newSession?.user) {
           setSession(newSession);
           setUser(newSession.user);
-          
-          // Always fetch profile on auth state change
           await fetchProfile(newSession.user.id);
-        } else {
-          // Clear everything on sign out
-          setSession(null);
-          setUser(null);
-          setProfile(null);
         }
         
         setLoading(false);
@@ -146,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string) => {
     const supabase = getSupabaseClient();
     
-    console.log("[Auth] Starting signup for:", email);
+    console.log("[Auth] Signup starting for:", email);
     
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -162,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: { message: "Failed to create user" } };
     }
 
-    console.log("[Auth] User created, creating profile...");
+    console.log("[Auth] User created:", data.user.id);
 
     // Create DJ profile via API
     try {
@@ -181,16 +199,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await response.json();
       
       if (response.ok && result.profile) {
-        console.log("[Auth] Profile created:", result.profile.dj_name);
+        console.log("[Auth] Profile created via API:", result.profile.dj_name);
         setProfile(result.profile);
       } else {
-        console.error("[Auth] Profile creation failed:", result);
+        console.error("[Auth] Profile API error:", result);
       }
     } catch (profileError) {
       console.error("[Auth] Profile creation exception:", profileError);
     }
 
-    // Set session immediately if available
     if (data.session) {
       setSession(data.session);
       setUser(data.user);
@@ -202,7 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const supabase = getSupabaseClient();
     
-    console.log("[Auth] Signing in:", email);
+    console.log("[Auth] Sign in starting for:", email);
     
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -216,6 +233,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (data.user) {
       console.log("[Auth] Sign in successful, fetching profile...");
+      setSession(data.session);
+      setUser(data.user);
       await fetchProfile(data.user.id);
     }
     
@@ -227,22 +246,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     console.log("[Auth] Signing out...");
     
-    // Clear state FIRST
+    // Clear state first
     setUser(null);
     setSession(null);
     setProfile(null);
     
-    // Then sign out from Supabase
     await supabase.auth.signOut();
     
     console.log("[Auth] Sign out complete");
   };
 
-  const refreshProfile = async () => {
+  const refreshProfile = async (): Promise<DJProfile | null> => {
     if (user) {
-      console.log("[Auth] Refreshing profile...");
-      await fetchProfile(user.id);
+      console.log("[Auth] Refreshing profile for:", user.id);
+      return await fetchProfile(user.id);
     }
+    return null;
   };
 
   return (
@@ -250,7 +269,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user, 
       session, 
       profile, 
-      loading, 
+      loading,
+      profileLoading,
       signUp, 
       signIn, 
       signOut, 

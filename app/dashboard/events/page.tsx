@@ -1,89 +1,167 @@
-import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
-import { Button } from "@/components/ui/button"
-import Link from 'next/link';
+﻿"use client";
 
-// CRITICAL: This prevents static generation
-export const dynamic = 'force-dynamic';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
+import { CalendarDays, Plus, Loader2, MapPin } from "lucide-react";
 
-export default async function EventsPage() {
-  // Handle build time gracefully
-  if (!isSupabaseConfigured()) {
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+
+interface Event {
+  id: string;
+  name: string;
+  venue_name: string;
+  venue_address: string | null;
+  status: string;
+  start_time: string;
+  created_at: string;
+}
+
+export default function EventsPage() {
+  const { user, profile, loading } = useAuth();
+  const [events, setEvents] = useState<Event[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      if (!user) {
+        setEventsLoading(false);
+        return;
+      }
+
+      try {
+        const supabase = getSupabaseClient();
+        
+        // Fetch all events - in a production app with RLS, this would be filtered automatically
+        // For now, we fetch all events (since dj_id might not be set on all events)
+        console.log("[Events] Fetching events...");
+        
+        const { data, error } = await supabase
+          .from("events")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("[Events] Fetch error:", error);
+          setError(error.message);
+        } else {
+          console.log("[Events] Fetched:", data?.length || 0, "events");
+          setEvents(data || []);
+        }
+      } catch (err) {
+        console.error("[Events] Exception:", err);
+        setError("Failed to load events");
+      } finally {
+        setEventsLoading(false);
+      }
+    };
+
+    if (!loading) {
+      fetchEvents();
+    }
+  }, [user, loading]);
+
+  if (loading || eventsLoading) {
     return (
-      <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Events</h1>
-        <p className="text-gray-400">Loading events...</p>
-      </div>
-    );
-  }
-
-  const supabase = getSupabase();
-  
-  const { data: events, error } = await supabase
-    .from('events')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Failed to fetch events:', error);
-    return (
-      <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Events</h1>
-        <p className="text-red-400">Failed to load events</p>
+      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-purple-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading events...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Events</h1>
-        <Link
-          href="/dashboard/new"
-          className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg"
-        >
-          + New Event
-        </Link>
-      </div>
-
-      {!events || events.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-400 mb-4">No events yet</p>
+    <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white">My Events</h1>
+            <p className="text-gray-400 mt-1">Manage your DJ gigs and song requests</p>
+          </div>
           <Link
             href="/dashboard/new"
-            className="text-purple-400 hover:text-purple-300"
+            className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-4 py-2 rounded-xl text-white font-medium transition-all shadow-lg shadow-purple-500/20"
           >
-            Create your first event ?
+            <Plus className="w-5 h-5" />
+            New Event
           </Link>
         </div>
-      ) : (
-        <div className="grid gap-4">
-          {events.map((event) => (
+
+        {error ? (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6 text-center">
+            <p className="text-red-400">{error}</p>
+          </div>
+        ) : events.length === 0 ? (
+          <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-12 text-center">
+            <CalendarDays className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-white mb-2">No events yet</h2>
+            <p className="text-gray-400 mb-6">Create your first event to start accepting song requests!</p>
             <Link
-              key={event.id}
-              href={`/dashboard/events/${event.id}`}
-              className="block bg-[#1A1A1B] p-4 rounded-lg hover:bg-[#252526] transition"
+              href="/dashboard/new"
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 rounded-xl text-white font-medium"
             >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="font-semibold">{event.name}</h2>
-                  <p className="text-gray-400 text-sm">{event.venue_name}</p>
-                </div>
-                <span
-                  className={`px-2 py-1 rounded text-xs ${
-                    event.status === 'live'
-                      ? 'bg-green-500/20 text-green-400'
-                      : event.status === 'ended'
-                      ? 'bg-gray-500/20 text-gray-400'
-                      : 'bg-yellow-500/20 text-yellow-400'
-                  }`}
-                >
-                  {event.status}
-                </span>
-              </div>
+              <Plus className="w-5 h-5" />
+              Create Your First Event
             </Link>
-          ))}
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {events.map((event) => (
+              <Link
+                key={event.id}
+                href={`/dashboard/events/${event.id}`}
+                className="block bg-[#1A1A1B] border border-[#2D2D2D] hover:border-purple-500/50 rounded-2xl p-5 transition-all"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-xl font-bold text-white mb-1">{event.name}</h2>
+                    <p className="text-gray-400 flex items-center gap-2">
+                      <MapPin className="w-4 h-4" />
+                      {event.venue_name}
+                    </p>
+                    <p className="text-gray-500 text-sm mt-2">
+                      {new Date(event.start_time).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <StatusBadge status={event.status} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    live: "bg-green-500/20 text-green-400 border-green-500/30",
+    ended: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+    draft: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  };
+
+  return (
+    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.draft}`}>
+      {status === "live" && <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 animate-pulse" />}
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
+  );
+}
+

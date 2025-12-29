@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
-import { User, Phone, FileText, Image, Loader2, Save, Disc } from "lucide-react";
+import { User, Phone, FileText, Image, Loader2, Save, Disc, AlertCircle } from "lucide-react";
 
 function getSupabaseClient() {
   return createClient(
@@ -14,8 +14,8 @@ function getSupabaseClient() {
 }
 
 export default function SettingsPage() {
-  const { user, profile, refreshProfile } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const { user, profile, loading, profileLoading, refreshProfile } = useAuth();
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     dj_name: "",
     full_name: "",
@@ -27,7 +27,7 @@ export default function SettingsPage() {
   // Pre-fill form when profile loads
   useEffect(() => {
     if (profile) {
-      console.log("[Settings] Loading profile into form:", profile.dj_name);
+      console.log("[Settings] Pre-filling form with profile:", profile.dj_name);
       setFormData({
         dj_name: profile.dj_name || "",
         full_name: profile.full_name || "",
@@ -51,12 +51,12 @@ export default function SettingsPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSaving(true);
 
     try {
       const supabase = getSupabaseClient();
       
-      console.log("[Settings] Updating profile for:", user.id);
+      console.log("[Settings] Updating profile for user:", user.id);
       
       const updateData = {
         dj_name: formData.dj_name.trim(),
@@ -65,8 +65,6 @@ export default function SettingsPage() {
         bio: formData.bio.trim() || null,
         profile_image_url: formData.profile_image_url.trim() || null,
       };
-
-      console.log("[Settings] Update data:", updateData);
 
       const { data, error } = await supabase
         .from("dj_profiles")
@@ -77,29 +75,75 @@ export default function SettingsPage() {
 
       if (error) {
         console.error("[Settings] Update error:", error);
-        toast.error("Failed to update profile: " + error.message);
+        toast.error("Failed to update: " + error.message);
         return;
       }
 
       console.log("[Settings] Update successful:", data);
-
-      // Refresh the profile in auth context
       await refreshProfile();
-      
       toast.success("Profile updated successfully!");
     } catch (error) {
       console.error("[Settings] Exception:", error);
       toast.error("Something went wrong");
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
-  // Show loading if no profile yet
-  if (!profile) {
+  // Show loading only during initial auth check
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-purple-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // No user - redirect handled by layout
+  if (!user) {
+    return null;
+  }
+
+  // Profile not found - show error state
+  if (!profile && !profileLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-[#1A1A1B] rounded-2xl p-8 border border-[#2D2D2D] text-center">
+            <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">Profile Not Found</h2>
+            <p className="text-gray-400 mb-4">
+              We could not find your DJ profile. This can happen if:
+            </p>
+            <ul className="text-gray-500 text-sm text-left max-w-md mx-auto mb-6 space-y-2">
+              <li>• The profile was not created during signup</li>
+              <li>• There is a database sync issue</li>
+              <li>• Row Level Security is blocking access</li>
+            </ul>
+            <div className="bg-[#0A0A0B] rounded-xl p-4 text-left">
+              <p className="text-gray-400 text-xs mb-2">Debug Info:</p>
+              <p className="text-gray-500 text-xs font-mono">
+                User ID: {user.id}<br />
+                Email: {user.email}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Still loading profile
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-purple-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading profile...</p>
+        </div>
       </div>
     );
   }
@@ -124,9 +168,7 @@ export default function SettingsPage() {
                     src={formData.profile_image_url} 
                     alt="Profile" 
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 ) : (
                   <Disc className="w-10 h-10 text-white" />
@@ -134,7 +176,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">{formData.dj_name || "Your DJ Name"}</h2>
-                <p className="text-gray-400 text-sm">{profile.email}</p>
+                <p className="text-gray-400 text-sm">{profile?.email}</p>
               </div>
             </div>
 
@@ -150,7 +192,7 @@ export default function SettingsPage() {
                 onChange={(e) => setFormData({ ...formData, dj_name: e.target.value })}
                 placeholder="DJ Nostalgic"
                 className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
-                disabled={isLoading}
+                disabled={isSaving}
                 required
               />
             </div>
@@ -167,7 +209,7 @@ export default function SettingsPage() {
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                 placeholder="John Smith"
                 className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
-                disabled={isLoading}
+                disabled={isSaving}
               />
             </div>
 
@@ -183,7 +225,7 @@ export default function SettingsPage() {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="+1 (555) 123-4567"
                 className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
-                disabled={isLoading}
+                disabled={isSaving}
               />
             </div>
 
@@ -199,7 +241,7 @@ export default function SettingsPage() {
                 placeholder="Tell your audience about yourself..."
                 rows={4}
                 className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all resize-none"
-                disabled={isLoading}
+                disabled={isSaving}
               />
             </div>
 
@@ -215,25 +257,22 @@ export default function SettingsPage() {
                 onChange={(e) => setFormData({ ...formData, profile_image_url: e.target.value })}
                 placeholder="https://example.com/your-photo.jpg"
                 className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
-                disabled={isLoading}
+                disabled={isSaving}
               />
-              <p className="text-gray-500 text-xs mt-2">
-                Paste a direct link to your profile photo.
-              </p>
             </div>
           </div>
 
           {/* Save Button */}
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isSaving}
             className={`w-full py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-2 ${
-              isLoading
+              isSaving
                 ? "bg-gray-600 cursor-not-allowed"
-                : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+                : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-500/25"
             }`}
           >
-            {isLoading ? (
+            {isSaving ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 Saving...
@@ -246,15 +285,6 @@ export default function SettingsPage() {
             )}
           </button>
         </form>
-
-        {/* Debug Info (remove in production) */}
-        <div className="mt-8 p-4 bg-[#1A1A1B] rounded-xl border border-[#2D2D2D]">
-          <p className="text-gray-500 text-xs">
-            User ID: {user?.id}<br />
-            Profile ID: {profile?.id}<br />
-            Loaded DJ Name: {profile?.dj_name}
-          </p>
-        </div>
       </div>
     </div>
   );
