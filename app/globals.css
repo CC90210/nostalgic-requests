@@ -6,7 +6,6 @@
   --background: #0A0A0B;
   --foreground: #FFFFFF;
   --primary: #7C3AED;
-  --primary-light: #8B5CF6;
   --accent: #EC4899;
   --surface: #1A1A1B;
   --border: #2D2D2D;
@@ -26,61 +25,24 @@ body {
   color: var(--foreground);
 }
 
-/* Custom scrollbar */
+input, select, textarea {
+  color-scheme: dark;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--surface);
+  background: #1A1A1B;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: #2D2D2D;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #3D3D3D;
-}
-
-/* Date/time input dark mode */
-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  cursor: pointer;
-}
-
-/* Focus ring for accessibility */
-*:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-/* Selection color */
-::selection {
-  background-color: var(--primary);
-  color: white;
-}
-
-/* Animations */
-@keyframes pulse-slow {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.animate-pulse-slow {
-  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* Gradient text utility */
-.gradient-text {
-  background: linear-gradient(to right, #7C3AED, #EC4899, #7C3AED);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
