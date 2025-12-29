@@ -96,35 +96,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, djName: string, fullName?: string) => {
     const supabase = getSupabaseClient();
     
-    // CRITICAL: Add emailRedirectTo to point to the auth callback route
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // Sign up - with email confirmation disabled, this returns a session immediately
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: {
-          dj_name: djName,
-          full_name: fullName || "",
-        }
-      }
     });
 
-    if (authError) {
-      console.error("Auth error:", authError);
-      return { error: authError };
+    if (error) {
+      console.error("Auth error:", error);
+      return { error };
     }
 
-    if (!authData.user) {
+    if (!data.user) {
       return { error: { message: "Failed to create user" } };
     }
 
-    // Create DJ profile via API route (bypasses RLS)
+    // Immediately create DJ profile
     try {
       const response = await fetch("/api/auth/create-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: authData.user.id,
+          user_id: data.user.id,
           email,
           dj_name: djName,
           full_name: fullName || null,
@@ -139,11 +132,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Profile creation error:", profileError);
     }
 
-    setTimeout(() => {
-      if (authData.user) {
-        fetchProfile(authData.user.id);
-      }
-    }, 1000);
+    // Set user immediately since session is available
+    if (data.session) {
+      setSession(data.session);
+      setUser(data.user);
+    }
+
+    // Refresh session to ensure auth state is up to date
+    await supabase.auth.refreshSession();
+
+    // Fetch profile
+    await fetchProfile(data.user.id);
 
     return { error: null };
   };
