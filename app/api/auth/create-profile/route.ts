@@ -8,7 +8,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { user_id, email, dj_name, full_name, phone } = body;
 
+    // Log incoming data for debugging
+    console.log("[Create Profile] Request received:", { user_id, email, dj_name, phone });
+
     if (!user_id || !email || !dj_name) {
+      console.log("[Create Profile] Missing required fields");
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -20,32 +24,40 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Check if profile already exists
     const { data: existingProfile } = await supabaseAdmin
       .from("dj_profiles")
-      .select("id")
+      .select("*")
       .eq("user_id", user_id)
       .maybeSingle();
 
     if (existingProfile) {
-      return NextResponse.json({ message: "Profile already exists", profile: existingProfile });
+      console.log("[Create Profile] Profile already exists:", existingProfile.dj_name);
+      return NextResponse.json({ 
+        message: "Profile already exists", 
+        profile: existingProfile 
+      });
     }
 
+    // Create the profile
     const { data: profile, error } = await supabaseAdmin
       .from("dj_profiles")
       .insert({
         user_id,
         email,
         dj_name,
-        full_name,
-        phone,
+        full_name: full_name || null,
+        phone: phone || null,
       })
       .select()
       .single();
 
     if (error) {
-      console.error("Profile insert error:", error);
+      console.error("[Create Profile] Insert error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    console.log("[Create Profile] Profile created successfully:", profile.dj_name);
 
     // Send Welcome Email
     const resend = getResend();
@@ -57,15 +69,16 @@ export async function POST(request: NextRequest) {
           subject: "Welcome to Nostalgic Requests!",
           react: WelcomeEmail({ djName: dj_name }),
         });
-        console.log("Welcome email sent to:", email);
+        console.log("[Create Profile] Welcome email sent to:", email);
       } catch (emailError) {
-        console.error("Failed to send welcome email:", emailError);
+        console.error("[Create Profile] Email error:", emailError);
       }
     }
 
+    // Return the full profile object for immediate hydration
     return NextResponse.json({ profile });
   } catch (error) {
-    console.error("Create profile error:", error);
+    console.error("[Create Profile] Exception:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

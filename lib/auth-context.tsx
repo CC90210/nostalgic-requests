@@ -1,8 +1,8 @@
 ﻿"use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 interface DJProfile {
   id: string;
@@ -28,7 +28,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function getSupabaseClient() {
+// Singleton Supabase client
+let supabaseInstance: SupabaseClient | null = null;
+
+function getSupabaseClient(): SupabaseClient {
+  if (supabaseInstance) return supabaseInstance;
+  
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
@@ -36,7 +41,8 @@ function getSupabaseClient() {
     throw new Error("Missing Supabase environment variables");
   }
   
-  return createClient(url, key);
+  supabaseInstance = createClient(url, key);
+  return supabaseInstance;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -45,56 +51,102 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<DJProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  // Fetch profile from database
+  const fetchProfile = useCallback(async (userId: string): Promise<DJProfile | null> => {
     try {
       const supabase = getSupabaseClient();
+      console.log("[Auth] Fetching profile for user:", userId);
+      
       const { data, error } = await supabase
         .from("dj_profiles")
         .select("*")
         .eq("user_id", userId)
-        .maybeSingle();
+        .single();
 
-      if (!error && data) {
-        setProfile(data);
-      } else if (error) {
-        console.error("Error fetching profile:", error);
+      if (error) {
+        console.error("[Auth] Profile fetch error:", error);
+        return null;
       }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-    }
-  };
 
+      if (data) {
+        console.log("[Auth] Profile loaded:", data.dj_name);
+        setProfile(data);
+        return data;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("[Auth] Profile fetch exception:", error);
+      return null;
+    }
+  }, []);
+
+  // Initialize auth state
   useEffect(() => {
     const supabase = getSupabaseClient();
+    let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    // Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
         
-        if (session?.user) {
-          setTimeout(() => fetchProfile(session.user.id), 500);
+        if (!mounted) return;
+        
+        if (currentSession?.user) {
+          console.log("[Auth] Initial session found for:", currentSession.user.email);
+          setSession(currentSession);
+          setUser(currentSession.user);
+          await fetchProfile(currentSession.user.id);
         } else {
+          console.log("[Auth] No initial session");
+          setSession(null);
+          setUser(null);
           setProfile(null);
         }
+      } catch (error) {
+        console.error("[Auth] Init error:", error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, newSession) => {
+        console.log("[Auth] State change:", event);
+        
+        if (!mounted) return;
+
+        if (newSession?.user) {
+          setSession(newSession);
+          setUser(newSession.user);
+          
+          // Always fetch profile on auth state change
+          await fetchProfile(newSession.user.id);
+        } else {
+          // Clear everything on sign out
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+        }
+        
         setLoading(false);
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [fetchProfile]);
 
   const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string) => {
     const supabase = getSupabaseClient();
+    
+    console.log("[Auth] Starting signup for:", email);
     
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -102,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      console.error("Auth error:", error);
+      console.error("[Auth] Signup error:", error);
       return { error };
     }
 
@@ -110,7 +162,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: { message: "Failed to create user" } };
     }
 
-    // Immediately create DJ profile with phone
+    console.log("[Auth] User created, creating profile...");
+
+    // Create DJ profile via API
     try {
       const response = await fetch("/api/auth/create-profile", {
         method: "POST",
@@ -124,49 +178,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Profile creation error:", errorData);
+      const result = await response.json();
+      
+      if (response.ok && result.profile) {
+        console.log("[Auth] Profile created:", result.profile.dj_name);
+        setProfile(result.profile);
+      } else {
+        console.error("[Auth] Profile creation failed:", result);
       }
     } catch (profileError) {
-      console.error("Profile creation error:", profileError);
+      console.error("[Auth] Profile creation exception:", profileError);
     }
 
+    // Set session immediately if available
     if (data.session) {
       setSession(data.session);
       setUser(data.user);
     }
-
-    await supabase.auth.refreshSession();
-    await fetchProfile(data.user.id);
 
     return { error: null };
   };
 
   const signIn = async (email: string, password: string) => {
     const supabase = getSupabaseClient();
+    
+    console.log("[Auth] Signing in:", email);
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     
-    if (!error && data.user) {
+    if (error) {
+      console.error("[Auth] Sign in error:", error);
+      return { error };
+    }
+
+    if (data.user) {
+      console.log("[Auth] Sign in successful, fetching profile...");
       await fetchProfile(data.user.id);
     }
     
-    return { error };
+    return { error: null };
   };
 
   const signOut = async () => {
     const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
+    
+    console.log("[Auth] Signing out...");
+    
+    // Clear state FIRST
     setUser(null);
     setSession(null);
     setProfile(null);
+    
+    // Then sign out from Supabase
+    await supabase.auth.signOut();
+    
+    console.log("[Auth] Sign out complete");
   };
 
   const refreshProfile = async () => {
     if (user) {
+      console.log("[Auth] Refreshing profile...");
       await fetchProfile(user.id);
     }
   };

@@ -23,6 +23,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
+      console.log("[Dashboard Layout] No user, redirecting to login");
       router.push("/login");
     }
   }, [user, loading, router]);
@@ -40,9 +41,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   const handleSignOut = async () => {
+    console.log("[Dashboard Layout] Sign out clicked");
     await signOut();
     router.push("/login");
   };
+
+  // Get display name with fallbacks
+  const displayName = profile?.dj_name || user?.email?.split("@")[0] || "DJ";
+  const displayEmail = profile?.email || user?.email || "";
 
   const navItems = [
     { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -74,19 +80,21 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
         {/* DJ Profile Card */}
         <div className="p-4 border-b border-[#2D2D2D]">
-          <div className="bg-[#1A1A1B] rounded-xl p-3 flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
-              {profile?.profile_image_url ? (
-                <img src={profile.profile_image_url} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                <Disc className="w-5 h-5 text-white" />
-              )}
+          <Link href="/dashboard/settings" className="block bg-[#1A1A1B] hover:bg-[#252526] rounded-xl p-3 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                {profile?.profile_image_url ? (
+                  <img src={profile.profile_image_url} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <Disc className="w-5 h-5 text-white" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-white font-medium truncate">{displayName}</p>
+                <p className="text-gray-500 text-xs truncate">{displayEmail}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-white font-medium truncate">{profile?.dj_name || "DJ"}</p>
-              <p className="text-gray-500 text-xs truncate">{profile?.email}</p>
-            </div>
-          </div>
+          </Link>
         </div>
 
         {/* Nav */}
@@ -131,7 +139,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
               <Music className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-white">{profile?.dj_name || "Nostalgic"}</span>
+            <span className="font-bold text-white truncate max-w-[120px]">{displayName}</span>
           </div>
           <div className="flex gap-1">
             {navItems.slice(0, 4).map((item) => {

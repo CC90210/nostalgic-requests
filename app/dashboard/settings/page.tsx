@@ -24,8 +24,10 @@ export default function SettingsPage() {
     profile_image_url: "",
   });
 
+  // Pre-fill form when profile loads
   useEffect(() => {
     if (profile) {
+      console.log("[Settings] Loading profile into form:", profile.dj_name);
       setFormData({
         dj_name: profile.dj_name || "",
         full_name: profile.full_name || "",
@@ -54,32 +56,53 @@ export default function SettingsPage() {
     try {
       const supabase = getSupabaseClient();
       
-      const { error } = await supabase
+      console.log("[Settings] Updating profile for:", user.id);
+      
+      const updateData = {
+        dj_name: formData.dj_name.trim(),
+        full_name: formData.full_name.trim() || null,
+        phone: formData.phone.trim() || null,
+        bio: formData.bio.trim() || null,
+        profile_image_url: formData.profile_image_url.trim() || null,
+      };
+
+      console.log("[Settings] Update data:", updateData);
+
+      const { data, error } = await supabase
         .from("dj_profiles")
-        .update({
-          dj_name: formData.dj_name.trim(),
-          full_name: formData.full_name.trim() || null,
-          phone: formData.phone.trim() || null,
-          bio: formData.bio.trim() || null,
-          profile_image_url: formData.profile_image_url.trim() || null,
-        })
-        .eq("user_id", user.id);
+        .update(updateData)
+        .eq("user_id", user.id)
+        .select()
+        .single();
 
       if (error) {
-        console.error("Update error:", error);
-        toast.error("Failed to update profile");
+        console.error("[Settings] Update error:", error);
+        toast.error("Failed to update profile: " + error.message);
         return;
       }
 
+      console.log("[Settings] Update successful:", data);
+
+      // Refresh the profile in auth context
       await refreshProfile();
+      
       toast.success("Profile updated successfully!");
     } catch (error) {
-      console.error("Settings update error:", error);
+      console.error("[Settings] Exception:", error);
       toast.error("Something went wrong");
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Show loading if no profile yet
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
@@ -101,6 +124,9 @@ export default function SettingsPage() {
                     src={formData.profile_image_url} 
                     alt="Profile" 
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
                   />
                 ) : (
                   <Disc className="w-10 h-10 text-white" />
@@ -108,7 +134,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">{formData.dj_name || "Your DJ Name"}</h2>
-                <p className="text-gray-400 text-sm">{profile?.email}</p>
+                <p className="text-gray-400 text-sm">{profile.email}</p>
               </div>
             </div>
 
@@ -220,6 +246,15 @@ export default function SettingsPage() {
             )}
           </button>
         </form>
+
+        {/* Debug Info (remove in production) */}
+        <div className="mt-8 p-4 bg-[#1A1A1B] rounded-xl border border-[#2D2D2D]">
+          <p className="text-gray-500 text-xs">
+            User ID: {user?.id}<br />
+            Profile ID: {profile?.id}<br />
+            Loaded DJ Name: {profile?.dj_name}
+          </p>
+        </div>
       </div>
     </div>
   );
