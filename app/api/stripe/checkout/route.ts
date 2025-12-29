@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import { getStripe } from '@/lib/stripe';
 import { calculateTotal, PRICING } from '@/lib/pricing';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16' as any,
-});
 
 export async function POST(request: NextRequest) {
   try {
+    const stripe = getStripe();
     const body = await request.json();
     const {
       eventId,

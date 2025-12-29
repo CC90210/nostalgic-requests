@@ -6,10 +6,6 @@ const nextConfig: NextConfig = {
     // Use ONLY if really needed for deployment speed/rescue
     ignoreBuildErrors: true, 
   },
-  eslint: {
-     // Allows production builds to complete even if your project has eslint errors
-    ignoreDuringBuilds: true,
-  },
   images: {
     remotePatterns: [
       {
