@@ -6,7 +6,7 @@ import WelcomeEmail from "@/emails/WelcomeEmail";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { user_id, email, dj_name, full_name } = body;
+    const { user_id, email, dj_name, full_name, phone } = body;
 
     if (!user_id || !email || !dj_name) {
       return NextResponse.json(
@@ -15,13 +15,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use service role to bypass RLS
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Check if profile already exists
     const { data: existingProfile } = await supabaseAdmin
       .from("dj_profiles")
       .select("id")
@@ -32,7 +30,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Profile already exists", profile: existingProfile });
     }
 
-    // Create the profile
     const { data: profile, error } = await supabaseAdmin
       .from("dj_profiles")
       .insert({
@@ -40,6 +37,7 @@ export async function POST(request: NextRequest) {
         email,
         dj_name,
         full_name,
+        phone,
       })
       .select()
       .single();
@@ -62,10 +60,7 @@ export async function POST(request: NextRequest) {
         console.log("Welcome email sent to:", email);
       } catch (emailError) {
         console.error("Failed to send welcome email:", emailError);
-        // Don't fail the request if email fails
       }
-    } else {
-      console.warn("RESEND_API_KEY not configured, skipping welcome email");
     }
 
     return NextResponse.json({ profile });

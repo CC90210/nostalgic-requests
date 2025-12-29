@@ -20,7 +20,7 @@ interface AuthContextType {
   session: Session | null;
   profile: DJProfile | null;
   loading: boolean;
-  signUp: (email: string, password: string, djName: string, fullName?: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, djName: string, phone: string, fullName?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -93,10 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, djName: string, fullName?: string) => {
+  const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string) => {
     const supabase = getSupabaseClient();
     
-    // Sign up - with email confirmation disabled, this returns a session immediately
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -111,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: { message: "Failed to create user" } };
     }
 
-    // Immediately create DJ profile
+    // Immediately create DJ profile with phone
     try {
       const response = await fetch("/api/auth/create-profile", {
         method: "POST",
@@ -121,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email,
           dj_name: djName,
           full_name: fullName || null,
+          phone: phone || null,
         }),
       });
 
@@ -132,16 +132,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Profile creation error:", profileError);
     }
 
-    // Set user immediately since session is available
     if (data.session) {
       setSession(data.session);
       setUser(data.user);
     }
 
-    // Refresh session to ensure auth state is up to date
     await supabase.auth.refreshSession();
-
-    // Fetch profile
     await fetchProfile(data.user.id);
 
     return { error: null };

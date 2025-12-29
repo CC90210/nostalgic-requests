@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
-import { Music, Mail, Lock, User, Disc, Loader2 } from "lucide-react";
+import { Music, Mail, Lock, User, Disc, Loader2, Phone } from "lucide-react";
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -14,12 +14,12 @@ export default function LoginPage() {
     password: "",
     djName: "",
     fullName: "",
+    phone: "",
   });
   
   const { signIn, signUp, user, loading } = useAuth();
   const router = useRouter();
 
-  // Redirect if already logged in
   useEffect(() => {
     if (!loading && user) {
       router.push("/dashboard");
@@ -35,7 +35,6 @@ export default function LoginPage() {
 
     try {
       if (isLogin) {
-        // Sign In
         const { error } = await signIn(formData.email, formData.password);
         if (error) {
           if (error.message.includes("Invalid login credentials")) {
@@ -49,7 +48,6 @@ export default function LoginPage() {
         toast.success("Welcome back!");
         router.push("/dashboard");
       } else {
-        // Sign Up
         if (!formData.djName.trim()) {
           toast.error("Please enter your DJ name");
           setIsLoading(false);
@@ -61,11 +59,18 @@ export default function LoginPage() {
           setIsLoading(false);
           return;
         }
+
+        if (!formData.phone.trim()) {
+          toast.error("Please enter your phone number");
+          setIsLoading(false);
+          return;
+        }
         
         const { error } = await signUp(
           formData.email,
           formData.password,
           formData.djName.trim(),
+          formData.phone.trim(),
           formData.fullName.trim() || undefined
         );
         
@@ -80,7 +85,6 @@ export default function LoginPage() {
           return;
         }
         
-        // Immediate redirect to dashboard - no email verification
         toast.success("Account created! Redirecting...");
         router.push("/dashboard");
       }
@@ -91,7 +95,6 @@ export default function LoginPage() {
     }
   };
 
-  // Show loading while checking auth state
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
@@ -102,14 +105,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center p-4">
-      {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px]" />
         <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-pink-600/20 rounded-full blur-[120px]" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl mb-4 shadow-lg shadow-purple-500/30">
             <Music className="w-8 h-8 text-white" />
@@ -120,9 +121,7 @@ export default function LoginPage() {
           <p className="text-gray-400 mt-2">DJ Song Request System</p>
         </div>
 
-        {/* Auth Card */}
         <div className="bg-[#1A1A1B]/80 backdrop-blur-xl border border-[#2D2D2D] rounded-2xl p-8 shadow-2xl">
-          {/* Toggle */}
           <div className="flex bg-[#0A0A0B] rounded-xl p-1 mb-6">
             <button
               type="button"
@@ -149,7 +148,6 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Sign Up Only Fields */}
             {!isLogin && (
               <>
                 <div>
@@ -163,6 +161,23 @@ export default function LoginPage() {
                       value={formData.djName}
                       onChange={(e) => setFormData({ ...formData, djName: e.target.value })}
                       placeholder="DJ Nostalgic"
+                      className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Phone Number <span className="text-pink-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="+1 (555) 123-4567"
                       className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                       disabled={isLoading}
                     />
@@ -188,7 +203,6 @@ export default function LoginPage() {
               </>
             )}
 
-            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Email <span className="text-pink-500">*</span>
@@ -207,7 +221,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Password <span className="text-pink-500">*</span>
@@ -230,7 +243,6 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={isLoading}
@@ -251,7 +263,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Divider */}
           <div className="mt-6 text-center">
             <p className="text-gray-500 text-sm">
               {isLogin ? "Don't have an account? " : "Already have an account? "}
@@ -266,7 +277,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-gray-500 text-sm mt-6">
           Powered by Nostalgic Events
         </p>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -11,7 +11,9 @@ import {
   CalendarDays, 
   Users,
   LogOut,
-  Music
+  Music,
+  Settings,
+  Disc
 } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -21,7 +23,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login"); // Fixed path here to be consistent with root route update later
+      router.push("/login");
     }
   }, [user, loading, router]);
 
@@ -48,6 +50,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     { href: "/dashboard/live", icon: Radio, label: "Live Requests" },
     { href: "/dashboard/events", icon: CalendarDays, label: "My Events" },
     { href: "/dashboard/leads", icon: Users, label: "Leads" },
+    { href: "/dashboard/settings", icon: Settings, label: "Settings" },
   ];
 
   return (
@@ -69,15 +72,22 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </Link>
         </div>
 
-        {/* DJ Profile */}
-        {profile && (
-          <div className="p-4 border-b border-[#2D2D2D]">
-            <div className="bg-[#1A1A1B] rounded-xl p-3">
-              <p className="text-white font-medium truncate">{profile.dj_name}</p>
-              <p className="text-gray-500 text-xs truncate">{profile.email}</p>
+        {/* DJ Profile Card */}
+        <div className="p-4 border-b border-[#2D2D2D]">
+          <div className="bg-[#1A1A1B] rounded-xl p-3 flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+              {profile?.profile_image_url ? (
+                <img src={profile.profile_image_url} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <Disc className="w-5 h-5 text-white" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-white font-medium truncate">{profile?.dj_name || "DJ"}</p>
+              <p className="text-gray-500 text-xs truncate">{profile?.email}</p>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Nav */}
         <nav className="flex-1 p-4 space-y-1">
@@ -121,7 +131,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
               <Music className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-white">Nostalgic</span>
+            <span className="font-bold text-white">{profile?.dj_name || "Nostalgic"}</span>
           </div>
           <div className="flex gap-1">
             {navItems.slice(0, 4).map((item) => {
@@ -139,6 +149,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 </Link>
               );
             })}
+            <Link
+              href="/dashboard/settings"
+              className={`p-2 rounded-lg transition-all ${
+                pathname === "/dashboard/settings" ? "bg-purple-600/20 text-purple-400" : "text-gray-400 hover:bg-[#1A1A1B]"
+              }`}
+            >
+              <Settings className="w-5 h-5" />
+            </Link>
           </div>
         </div>
       </div>
@@ -150,3 +168,4 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
