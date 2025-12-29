@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ?? Nostalgic Requests
 
-## Getting Started
+A premium song request and payment platform for DJs. Accept paid song requests at live events via QR code, process payments with Apple Pay, and manage requests in real-time.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Event Management** - Create events with auto-generated QR codes
+- **Music Search** - Search millions of songs via iTunes API
+- **Payments** - Stripe integration with Apple Pay & Google Pay
+- **Real-Time Dashboard** - See requests instantly as they come in
+- **Smart Queue** - Priority sorting for premium requests
+- **Lead Collection** - Capture customer phone numbers for marketing
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Tech Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Framework:** Next.js 16 (App Router)
+- **Database:** Supabase (PostgreSQL + Realtime)
+- **Payments:** Stripe
+- **Music API:** iTunes Search API
+- **Styling:** Tailwind CSS + shadcn/ui
+- **Animations:** Framer Motion
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Pricing Tiers
 
-## Learn More
+| Package | Price | Songs |
+|---------|-------|-------|
+| Single | $5 | 1 |
+| Double Up | $8 | 2 |
+| Party Pack | $12 | 3 |
 
-To learn more about Next.js, take a look at the following resources:
+**Add-ons:**
+- Priority Play: +$10
+- Shoutout: +$5
+- Guaranteed Next: +$20
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Clone the repository
+2. Copy `.env.example` to `.env.local` and fill in your keys
+3. Run `npm install`
+4. Run `npm run dev`
+5. Set up Supabase tables
+6. Deploy to Vercel
 
-## Deploy on Vercel
+## Environment Variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+See `.env.example` for required variables.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+Private - All rights reserved.
+
+---
+
+Built by [Nostalgic Events](https://nostalgicevents.com)
