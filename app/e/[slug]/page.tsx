@@ -1,13 +1,15 @@
 import { notFound } from "next/navigation"
 import { RequestFlow } from "@/components/portal/request-flow"
 import { MapPin, Disc } from "lucide-react"
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabase"
 
-// Server Component
-import { supabase } from "@/lib/supabase"
+export const dynamic = 'force-dynamic';
 
 export default async function EventPortalPage({ params }: { params: Promise<{ slug: string }> }) {
+  if (!isSupabaseConfigured()) return <div>Loading...</div>;
   const { slug } = await params;
   
+  const supabase = getSupabase();
   const { data: event, error } = await supabase
     .from("events")
     .select("*")

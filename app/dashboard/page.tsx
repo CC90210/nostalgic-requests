@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatDistanceToNow } from "date-fns"
 
-export const revalidate = 0; // Disable static caching for dashboard home
+export const dynamic = 'force-dynamic';
 
 export default async function DashboardHome() {
   // Fetch stats concurrently

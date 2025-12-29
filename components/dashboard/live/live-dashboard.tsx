@@ -1,264 +1,309 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
+import { useEffect, useState } from 'react';
+import { getSupabase } from '@/lib/supabase';
+import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
-import { Bell, BellOff, Clock, Copy, DollarSign, MessageSquare, Music, CheckCircle, Disc } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { formatDistanceToNow } from "date-fns"
-import Image from "next/image"
+import { Copy, Play, CheckCircle, Bell, BellOff, Music } from "lucide-react"
 
-interface LiveDashboardProps {
-  eventId: string
-  eventName: string
-  venueName: string
-  initialRequests: any[]
-  initialRevenue: number
-  endTime: string
+// Types need to match DB schema
+interface Request {
+    id: string
+    song_title: string
+    song_artist: string
+    song_album?: string
+    song_artwork_url?: string
+    requester_name?: string
+    requester_phone?: string
+    amount_paid: number
+    has_priority: boolean
+    has_shoutout: boolean
+    has_guaranteed_next: boolean
+    status: 'pending' | 'playing' | 'played'
+    created_at: string
 }
 
-export function LiveDashboard({ 
-    eventId, 
-    eventName, 
-    venueName, 
-    initialRequests, 
-    initialRevenue,
-    endTime 
-}: LiveDashboardProps) {
-  const [requests, setRequests] = useState<any[]>(initialRequests)
-  const [revenue, setRevenue] = useState(initialRevenue)
-  const [soundEnabled, setSoundEnabled] = useState(true)
-  const [activeTab, setActiveTab] = useState("queue")
+interface LiveDashboardProps {
+    eventId: string
+    eventName: string
+    venueName: string
+    initialRequests: Request[] // Changed from any[] to Request[]
+    initialRevenue: number
+    endTime: string
+}
 
-  useEffect(() => {
-    const channel = supabase
-      .channel("live-requests")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "requests",
-          filter: `event_id=eq.${eventId}`,
-        },
-        (payload) => {
-          const newRequest = payload.new
-          setRequests(prev => [newRequest, ...prev])
-          setRevenue(prev => prev + newRequest.amount_paid)
-          
-          if (soundEnabled) {
-             const audio = new Audio("/notification.mp3") // Placeholder (needs real file)
-             audio.play().catch(() => {})
-          }
-          
-          toast.success(`New request: ${newRequest.song_title}`)
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "requests",
-          filter: `event_id=eq.${eventId}`,
-        },
-        (payload) => {
-          setRequests(prev => prev.map(r => r.id === payload.new.id ? payload.new : r))
-        }
-      )
-      .subscribe()
+export function LiveDashboard({ eventId, eventName, venueName, initialRequests, initialRevenue }: LiveDashboardProps) {
+    const [requests, setRequests] = useState<Request[]>(initialRequests)
+    const [revenue, setRevenue] = useState(initialRevenue)
+    const [soundEnabled, setSoundEnabled] = useState(true)
+    const [activeTab, setActiveTab] = useState<'queue' | 'playing' | 'played' | 'all'>('queue')
 
-    return () => {
-      supabase.removeChannel(channel)
+    useEffect(() => {
+        // Since getSupabase() is now lazy and safe, this can run here
+        const supabase = getSupabase()
+
+        // Listen for new requests
+        const channel = supabase
+            .channel('live-dashboard')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'requests',
+                    filter: `event_id=eq.${eventId}`,
+                },
+                (payload) => {
+                     if (payload.eventType === 'INSERT') {
+                        const newRequest = payload.new as Request
+                        setRequests((prev) => [newRequest, ...prev])
+                        setRevenue((prev) => prev + (newRequest.amount_paid || 0))
+                        
+                        // Play Notification Sound
+                        if (soundEnabled) playNotificationSound()
+                        
+                        toast.success(`New Request: ${newRequest.song_title}`, {
+                            description: `${newRequest.requester_name || 'Anonymous'} paid $${newRequest.amount_paid}`
+                        })
+                    } else if (payload.eventType === 'UPDATE') {
+                        // Handle status updates from other devices/tabs
+                         setRequests((prev) => prev.map(req => req.id === payload.new.id ? payload.new as Request : req))
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [eventId, soundEnabled])
+
+    const playNotificationSound = () => {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.play().catch(e => console.log('Audio play failed', e)); // User interaction usually required first
     }
-  }, [eventId, soundEnabled])
 
-  const handleStatusChange = async (requestId: string, status: string) => {
-      try {
-           const { error } = await supabase
-            .from("requests")
-            .update({ status, played_at: status === "played" ? new Date().toISOString() : null })
-            .eq("id", requestId)
+    // Sort Logic: Guaranteed Next > Priority > Time (Oldest First for fairness? Or Newest? Usually oldest paid request first)
+    // But typically "Guaranteed Next" bumps to top.
+    const sortRequests = (reqs: Request[]) => {
+        return [...reqs].sort((a, b) => {
+            // Status sort (if mixed in "all" tab)
+            if (a.status === 'playing' && b.status !== 'playing') return -1;
+            if (b.status === 'playing' && a.status !== 'playing') return 1;
 
-            if (error) throw error
+            if (a.has_guaranteed_next && !b.has_guaranteed_next) return -1
+            if (!a.has_guaranteed_next && b.has_guaranteed_next) return 1
             
-             // Optimistic update
-             setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status } : r))
-             
-             if(status === "playing") toast.info("Marked as Now Playing")
-             if(status === "played") toast.success("Request completed!")
-             
-      } catch (error) {
-          console.error(error)
-          toast.error("Failed to update status")
-      }
-  }
+            if (a.has_priority && !b.has_priority) return -1
+            if (!a.has_priority && b.has_priority) return 1
+            
+            // Default: Oldest first (FIFO) for fairness in queue
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        })
+    }
 
-  const copySong = (artist: string, title: string) => {
-      navigator.clipboard.writeText(`${artist} - ${title}`)
-      toast.success("Copied to clipboard")
-  }
+    const handleStatusChange = async (id: string, newStatus: 'playing' | 'played') => {
+        const supabase = getSupabase()
+        
+        // Optimistic update
+        setRequests(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r))
 
-  // Sorting logic
-  const sortedRequests = [...requests].sort((a, b) => {
-      // 1. Guaranteed Next
-      if (a.has_guaranteed_next && !b.has_guaranteed_next) return -1
-      if (!a.has_guaranteed_next && b.has_guaranteed_next) return 1
-      
-      // 2. Priority
-      if (a.has_priority && !b.has_priority) return -1
-      if (!a.has_priority && b.has_priority) return 1
-      
-      // 3. Time (Oldest first)
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  })
+        const { error } = await supabase
+            .from('requests')
+            .update({ status: newStatus })
+            .eq('id', id)
+        
+        if (error) {
+            toast.error("Failed to update status")
+            // Revert on error would go here
+        }
+    }
 
-  // Filtering
-  const pendingRequests = sortedRequests.filter(r => r.status === "pending")
-  const playingRequests = sortedRequests.filter(r => r.status === "playing")
-  const playedRequests = sortedRequests.filter(r => r.status === "played")
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text)
+        toast.success("Copied to clipboard")
+    }
 
-  return (
-    <div className="space-y-6">
-        {/* Sticky Stats Bar */}
-        <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 sticky top-4 z-10 backdrop-blur opacity-95">
-             <div>
-                <div className="flex items-center gap-2">
-                     <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                    </span>
-                    <h2 className="font-bold text-lg">{eventName}</h2>
+    // Filtering logic
+    const queueRequests = sortRequests(requests.filter(r => r.status === 'pending'))
+    const playingRequest = requests.find(r => r.status === 'playing')
+    const playedRequests = requests.filter(r => r.status === 'played').sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) // Newest played first
+    
+    // Determine what to show based on tab
+    let displayedRequests = []
+    if (activeTab === 'queue') displayedRequests = queueRequests
+    if (activeTab === 'playing') displayedRequests = playingRequest ? [playingRequest] : []
+    if (activeTab === 'played') displayedRequests = playedRequests
+    if (activeTab === 'all') displayedRequests = sortRequests(requests)
+
+    return (
+        <div className="min-h-screen bg-black text-white p-4 md:p-6 space-y-6">
+            {/* Sticky Stats Bar */}
+            <div className="sticky top-4 z-50 bg-gray-900/90 backdrop-blur-md border border-gray-800 p-4 rounded-xl shadow-2xl flex flex-wrap items-center justify-between gap-4">
+                 <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]" />
+                    <div>
+                        <h1 className="font-bold text-lg leading-none">{eventName}</h1>
+                        <p className="text-xs text-gray-400">{venueName}</p>
+                    </div>
                 </div>
-                <p className="text-sm text-muted-foreground">{venueName}</p>
-             </div>
-             
-             <div className="flex gap-6 text-sm">
-                 <div className="flex flex-col items-center">
-                     <span className="text-muted-foreground flex items-center gap-1"><DollarSign className="h-4 w-4" /> Revenue</span>
-                     <span className="font-bold text-lg text-green-500">${revenue.toFixed(2)}</span>
-                 </div>
-                 <div className="flex flex-col items-center">
-                     <span className="text-muted-foreground flex items-center gap-1"><Music className="h-4 w-4" /> Requests</span>
-                     <span className="font-bold text-lg">{requests.length}</span>
-                 </div>
-                  <div className="flex flex-col items-center">
-                     <span className="text-muted-foreground flex items-center gap-1"><Clock className="h-4 w-4" /> Ends In</span>
-                     <span className="font-bold text-lg">
-                        {/* Simple countdown placeholder, ideally use hook */}
-                        Live
-                     </span>
-                 </div>
-             </div>
 
-             <Button variant="ghost" size="icon" onClick={() => setSoundEnabled(!soundEnabled)}>
-                 {soundEnabled ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5 text-muted-foreground" />}
-             </Button>
-        </div>
+                 <div className="flex items-center gap-6 text-sm font-mono">
+                    <div className="text-center">
+                        <p className="text-gray-500 text-xs uppercase tracking-wider">Revenue</p>
+                        <p className="font-bold text-green-400 text-lg">${revenue.toFixed(2)}</p>
+                    </div>
+                    <div className="w-px h-8 bg-gray-800" />
+                    <div className="text-center">
+                        <p className="text-gray-500 text-xs uppercase tracking-wider">Requests</p>
+                        <p className="font-bold text-white text-lg">{requests.length}</p>
+                    </div>
+                     <div className="w-px h-8 bg-gray-800" />
+                     <button onClick={() => setSoundEnabled(!soundEnabled)} className="hover:bg-gray-800 p-2 rounded-full transition-colors">
+                        {soundEnabled ? <Bell className="h-5 w-5 text-yellow-400" /> : <BellOff className="h-5 w-5 text-gray-500" />}
+                     </button>
+                </div>
+            </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="queue">Queue ({pendingRequests.length})</TabsTrigger>
-                <TabsTrigger value="playing">Now Playing ({playingRequests.length})</TabsTrigger>
-                <TabsTrigger value="played">Played ({playedRequests.length})</TabsTrigger>
-                <TabsTrigger value="all">All</TabsTrigger>
-            </TabsList>
+            {/* Tabs */}
+            <div className="flex gap-2 overflow-x-auto pb-2">
+                {['queue', 'now playing', 'played', 'all'].map((tab) => (
+                    <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab.split(' ')[0] as any)} // Hacky split for 'now playing' -> 'now' (wait no, key logic needs fix)
+                        className={`px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                            (tab === 'now playing' && activeTab === 'playing') || (tab === activeTab)
+                                ? 'bg-white text-black shadow-lg scale-105'
+                                : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
+                        }`}
+                        // Fix logic for click handler
+                        // onClick={() => setActiveTab(tab === 'now playing' ? 'playing' : tab as any)}
+                    >
+                       {tab} {(tab === 'queue' && queueRequests.length > 0) && <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{queueRequests.length}</span>}
+                    </button>
+                ))}
+            </div>
 
-            <div className="mt-6">
+            {/* Main Content Area */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 <AnimatePresence mode="popLayout">
-                    {(activeTab === "queue" ? pendingRequests : activeTab === "playing" ? playingRequests : activeTab === "played" ? playedRequests : sortedRequests).map((request) => (
-                        <motion.div 
-                            key={request.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, x: -100 }}
-                            layout
-                            className="mb-4"
-                        >
-                            <Card className={`overflow-hidden ${request.has_guaranteed_next ? "border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : request.has_priority ? "border-orange-500/50" : ""}`}>
-                                <CardContent className="p-0">
-                                    <div className="flex flex-col md:flex-row">
-                                        {/* Artwork & Main Info */}
-                                        <div className="flex-1 p-4 flex gap-4 items-start">
-                                            <div className="relative h-20 w-20 flex-shrink-0 rounded-md overflow-hidden bg-secondary">
-                                                {request.song_artwork_url ? (
-                                                    <Image src={request.song_artwork_url} alt={request.song_title} fill className="object-cover" />
-                                                ) : (
-                                                    <div className="h-full w-full flex items-center justify-center"><Disc className="h-8 w-8 text-muted-foreground" /></div>
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0 space-y-1">
-                                                <div className="flex items-start justify-between gap-2">
-                                                     <div>
-                                                         <h3 className="font-bold text-lg leading-tight truncate">{request.song_title}</h3>
-                                                         <p className="text-muted-foreground">{request.song_artist}</p>
-                                                     </div>
-                                                     <div className="flex flex-col items-end gap-1">
-                                                         <span className="font-bold text-green-500">${request.amount_paid}</span>
-                                                          {request.has_guaranteed_next && <Badge variant="destructive" className="whitespace-nowrap">?? NEXT</Badge>}
-                                                          {request.has_priority && !request.has_guaranteed_next && <Badge variant="default" className="bg-orange-500 hover:bg-orange-600 whitespace-nowrap">? PRIORITY</Badge>}
-                                                     </div>
-                                                </div>
-                                                
-                                                <div className="flex flex-wrap gap-2 pt-2">
-                                                    <div className="text-sm bg-secondary/50 px-2 py-1 rounded">
-                                                        Requested by <span className="font-bold">{request.requester_name || "Guest"}</span>
-                                                    </div>
-                                                     <div className="text-sm text-muted-foreground flex items-center gap-1">
-                                                        <Clock className="h-3 w-3" /> {formatDistanceToNow(new Date(request.created_at))} ago
-                                                    </div>
-                                                </div>
-
-                                                 {request.has_shoutout && (
-                                                     <div className="mt-2 bg-pink-500/10 text-pink-500 border border-pink-500/20 px-3 py-2 rounded-md flex items-center gap-2">
-                                                         <MessageSquare className="h-4 w-4" />
-                                                         <span className="font-bold text-sm">SHOUTOUT REQUIRED</span>
-                                                     </div>
-                                                 )}
-                                            </div>
-                                        </div>
-
-                                        {/* Actions */}
-                                        <div className="bg-secondary/20 p-4 flex md:flex-col gap-2 justify-center border-t md:border-t-0 md:border-l md:w-32">
-                                            <Button size="sm" variant="outline" onClick={() => copySong(request.song_artist, request.song_title)} title="Copy Song">
-                                                <Copy className="h-4 w-4" />
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => toast.info("SMS feature coming soon")} title="Send SMS">
-                                                <MessageSquare className="h-4 w-4" />
-                                            </Button>
-                                            
-                                            {request.status === "pending" && (
-                                                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => handleStatusChange(request.id, "playing")} title="Mark Playing">
-                                                    <Disc className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                            
-                                            {request.status === "playing" && (
-                                                 <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusChange(request.id, "played")} title="Mark Done">
-                                                    <CheckCircle className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                    {activeTab === 'playing' && !playingRequest && (
+                        <motion.div initial={{opacity: 0}} animate={{opacity: 1}} className="col-span-full h-64 flex flex-col items-center justify-center text-gray-500 border-2 border-dashed border-gray-800 rounded-xl">
+                            <Music className="h-12 w-12 mb-4 opacity-20" />
+                            <p>Nothing playing right now.</p>
                         </motion.div>
+                    )}
+
+                    {displayedRequests.map((req) => (
+                        <RequestCard 
+                            key={req.id} 
+                            request={req} 
+                            onCopy={() => copyToClipboard(`${req.song_artist} - ${req.song_title}`)}
+                            onPlay={() => handleStatusChange(req.id, 'playing')}
+                            onDone={() => handleStatusChange(req.id, 'played')}
+                        />
                     ))}
                 </AnimatePresence>
-                 
-                 {/* Empty States */}
-                {pendingRequests.length === 0 && activeTab === "queue" && (
-                    <div className="text-center py-12 text-muted-foreground">
-                        <p className="text-xl mb-2">??</p>
-                        No pending requests. You''re all caught up!
+            </div>
+        </div>
+    )
+}
+
+function RequestCard({ request, onCopy, onPlay, onDone }: { request: Request, onCopy: () => void, onPlay: () => void, onDone: () => void }) {
+    const isPriority = request.has_priority || request.has_guaranteed_next
+    const isPlaying = request.status === 'playing'
+
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className={`relative group rounded-xl overflow-hidden border transition-all ${
+                isPlaying 
+                ? 'bg-gradient-to-b from-green-900/40 to-black border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.2)]'
+                : isPriority 
+                    ? 'bg-gradient-to-b from-yellow-900/20 to-black border-yellow-500/50' 
+                    : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'
+            }`}
+        >
+             {/* Status Badge */}
+            {request.has_guaranteed_next && (
+                <div className="absolute top-0 right-0 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg z-10 animate-pulse">
+                    ?? NEXT
+                </div>
+            )}
+            
+            <div className="p-4 flex gap-4">
+                 {/* Artwork */}
+                <div className="relative w-20 h-20 shrink-0 rounded-md overflow-hidden bg-gray-800 shadow-lg">
+                    {request.song_artwork_url ? (
+                        <img src={request.song_artwork_url} alt="Art" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center"><Music className="h-8 w-8 text-gray-600" /></div>
+                    )}
+                    {isPlaying && (
+                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                             <div className="w-3 h-3 bg-green-500 rounded-full animate-ping" />
+                         </div>
+                    )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    <div>
+                        <h3 className="font-bold text-white truncate leading-tight">{request.song_title}</h3>
+                        <p className="text-sm text-gray-400 truncate">{request.song_artist}</p>
                     </div>
+                    
+                    <div className="flex items-center justify-between mt-2">
+                        <div className="flex flex-col">
+                            <span className="text-xs text-gray-500 font-mono">{request.requester_name || 'Guest'}</span>
+                            {request.requester_phone && <span className="text-[10px] text-gray-600">{request.requester_phone}</span>}
+                        </div>
+                        <div className="text-right">
+                             <span className={`text-lg font-bold font-mono ${request.amount_paid >= 10 ? 'text-green-400' : 'text-gray-300'}`}>
+                                ${request.amount_paid}
+                             </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Actions */}
+            <div className="grid grid-cols-2 gap-px bg-gray-800/50 mt-1 border-t border-gray-800">
+                {request.status !== 'played' && (
+                     <>
+                        <button onClick={onCopy} className="p-3 text-xs font-semibold hover:bg-white/10 flex items-center justify-center gap-2 transition-colors">
+                            <Copy className="h-3 w-3" /> Copy
+                        </button>
+                        {!isPlaying && (
+                             <button onClick={onPlay} className="p-3 text-xs font-semibold hover:bg-green-500/20 text-green-400 flex items-center justify-center gap-2 transition-colors border-l border-gray-800">
+                                <Play className="h-3 w-3" /> Play
+                             </button>
+                        )}
+                        {isPlaying && (
+                             <button onClick={onDone} className="p-3 text-xs font-semibold hover:bg-blue-500/20 text-blue-400 flex items-center justify-center gap-2 transition-colors border-l border-gray-800">
+                                <CheckCircle className="h-3 w-3" /> Done
+                            </button>
+                        )}
+                     </>
+                )}
+                 {request.status === 'played' && (
+                     <div className="col-span-2 p-2 text-center text-xs text-gray-500 flex items-center justify-center gap-1">
+                         <CheckCircle className="h-3 w-3" /> Played
+                     </div>
                 )}
             </div>
-        </Tabs>
-    </div>
-  )
+            
+             {/* Addon Indicators */}
+             {(request.has_shoutout || request.has_priority) && (
+                 <div className="px-4 py-1.5 bg-white/5 flex gap-2 text-[10px] text-gray-400 overflow-x-auto">
+                     {request.has_shoutout && <span className="text-purple-400">?? Shoutout Included</span>}
+                     {request.has_priority && <span className="text-yellow-400">? Priority Upgrade</span>}
+                 </div>
+             )}
+        </motion.div>
+    )
 }

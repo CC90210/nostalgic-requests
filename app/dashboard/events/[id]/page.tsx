@@ -1,27 +1,34 @@
-import Link from "next/link"
+import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
 import { notFound } from "next/navigation"
-import { ArrowLeft, Calendar, MapPin, QrCode as QrIcon } from "lucide-react"
-import { format } from "date-fns"
+import Link from "next/link"
+import { ArrowLeft, Clock, MapPin, QrCode, User, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import QRCode from "qrcode"
+import { format } from "date-fns"
 
-async function getEvent(id: string) {
-  const url = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  try {
-    const res = await fetch(`${url}/api/events/${id}`, { cache: "no-store" });
-    if (!res.ok) return null;
-    return res.json();
-  } catch (error) {
-    console.error("Failed to fetch event:", error);
-    return null;
-  }
-}
+export const dynamic = 'force-dynamic';
 
 export default async function EventDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const event = await getEvent(id);
+  if (!isSupabaseConfigured()) return <div>Loading...</div>;
 
-  if (!event) return notFound();
+  const { id } = await params
+  const supabase = getSupabase();
+  
+  const { data: event, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (error || !event) {
+    return notFound()
+  }
+
+  // Get QR Data URL
+  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/e/${event.unique_slug}`
+  const qrCodeDataUrl = await QRCode.toDataURL(portalUrl)
 
   return (
     <div className="space-y-6">
@@ -31,66 +38,71 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ i
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <h2 className="text-3xl font-bold tracking-tight">Event Details</h2>
+        <h1 className="text-3xl font-bold tracking-tight">{event.name}</h1>
+        <span className={`px-3 py-1 rounded-full text-sm font-medium border ${event.status === "live" ? "bg-red-500/10 text-red-500 border-red-500/20" : "bg-secondary text-muted-foreground"}`}>
+            {event.status.toUpperCase()}
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>{event.name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span>{event.venue_name} {event.venue_address && `- ${event.venue_address}`}</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span>{format(new Date(event.start_time), "PPP p")}</span>
-            </div>
-            <div className="p-4 bg-muted rounded-lg mt-4">
-                <h4 className="font-semibold mb-2">Public Portal URL</h4>
-                <a href={`/e/${event.unique_slug}`} target="_blank" className="text-blue-500 hover:underline break-all">
-                    {process.env.NEXT_PUBLIC_APP_URL}/e/{event.unique_slug}
-                </a>
-            </div>
-          </CardContent>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+            <CardHeader>
+                <CardTitle>Event Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span>{event.venue_name} {event.venue_address && <span className="text-muted-foreground">({event.venue_address})</span>}</span>
+                </div>
+                 <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span>{format(new Date(event.start_time), "PPP p")}</span>
+                </div>
+                {event.custom_message && (
+                    <div className="p-3 bg-secondary/50 rounded-md text-sm italic">
+                        "{event.custom_message}"
+                    </div>
+                )}
+                 <Separator />
+                 <div className="flex gap-4 pt-2">
+                      <Button variant="outline" asChild>
+                          <Link href={`/dashboard/live`}>Open Live Dashboard</Link>
+                      </Button>
+                 </div>
+            </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-                <QrIcon className="h-5 w-5" /> QR Code
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center">
-            {event.qr_code_url ? (
-                <>
-                    <img src={event.qr_code_url} alt="Event QR Code" className="w-48 h-48 mb-4 border rounded-lg" />
-                    <Button asChild variant="secondary" className="w-full">
-                        <a href={event.qr_code_url} download={`qr-${event.unique_slug}.png`}>
-                            Download QR
-                        </a>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <QrCode className="h-5 w-5" /> Request Portal
+                </CardTitle>
+                <CardDescription>Share this with guests to accept requests</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center space-y-4">
+               <div className="bg-white p-4 rounded-xl">
+                    <img src={qrCodeDataUrl} alt="QR Code" className="w-48 h-48" />
+               </div>
+               <div className="w-full text-center space-y-2">
+                   <p className="text-xs text-muted-foreground font-mono bg-secondary p-2 rounded break-all">
+                       {portalUrl}
+                   </p>
+                    <Button variant="secondary" className="w-full" asChild>
+                        <Link href={portalUrl} target="_blank">
+                            <Globe className="mr-2 h-4 w-4" /> Open Public Portal
+                        </Link>
                     </Button>
-                </>
-            ) : (
-                <div className="text-sm text-muted-foreground">No QR Code generated</div>
-            )}
-          </CardContent>
+               </div>
+            </CardContent>
         </Card>
       </div>
-      
-      {/* Placeholder for stats/requests table */}
-      <Card>
-          <CardHeader>
-              <CardTitle>Recent Requests</CardTitle>
-          </CardHeader>
-          <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                  Requests will appear here once the event goes live.
-              </div>
-          </CardContent>
-      </Card>
+
+      <div className="space-y-4">
+           <h2 className="text-xl font-bold">Recent Requests</h2>
+           <div className="p-8 border-2 border-dashed rounded-xl text-center text-muted-foreground">
+               Requests will appear here once the event starts.
+           </div>
+      </div>
     </div>
   )
 }

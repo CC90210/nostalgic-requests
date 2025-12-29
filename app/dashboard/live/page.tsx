@@ -1,15 +1,27 @@
-import { supabase } from "@/lib/supabase"
+import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
+import { redirect } from 'next/navigation';
 import { LiveDashboard } from "@/components/dashboard/live/live-dashboard"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
+// CRITICAL: This prevents static generation
+export const dynamic = 'force-dynamic';
+
 export default async function LivePage() {
-  // 1. Find the active event (status = ''live'' or just most recent created)
-  // For MVP since we don''t have a strict "Go Live" toggle yet, let''s take the most recent created event 
-  // that isn''t ''ended''. (Or we can assume the user clicked "Manage Live" from dashboard which could pass ID?)
-  // But this is a page route. Let''s fetch the most recent event for now.
-  
+  // Handle build time gracefully
+  if (!isSupabaseConfigured()) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold mb-4">Live Dashboard</h1>
+        <p className="text-gray-400">Loading...</p>
+      </div>
+    );
+  }
+
+  const supabase = getSupabase();
+
+  // Find the currently live event (or most recent created)
   const { data: event } = await supabase
     .from("events")
     .select("*")

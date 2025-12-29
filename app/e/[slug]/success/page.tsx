@@ -8,12 +8,9 @@ import { CheckCircle, Music, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
+export const dynamic = 'force-dynamic';
+
 export default function SuccessPage({ params }: { params: Promise<{ slug: string }> }) {
- // Unwrap params with React.use() or await in async component, 
- // but we are in client component, so we treat it as Promise still in Next 15 types, 
- // but usually params are available directly in props in Next 14. 
- // Actually Typescript says params is Promise in Next 15.
- // To be safe, let''s unwrap it.
  const [slug, setSlug] = useState<string>("")
  
  useEffect(() => {

@@ -1,52 +1,89 @@
-import { EventCard } from "@/components/dashboard/event-card"
+import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { Plus } from "lucide-react"
+import Link from 'next/link';
 
-async function getEvents() {
-  // Use absolute URL for server-side fetch
-  const url = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  try {
-    const res = await fetch(`${url}/api/events`, {
-        cache: "no-store",
-    });
-    if (!res.ok) return [];
-    return res.json();
-  } catch (e) {
-    console.error("Failed to fetch events", e);
-    return [];
-  }
-}
+// CRITICAL: This prevents static generation
+export const dynamic = 'force-dynamic';
 
 export default async function EventsPage() {
-  const events = await getEvents();
+  // Handle build time gracefully
+  if (!isSupabaseConfigured()) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold mb-4">Events</h1>
+        <p className="text-gray-400">Loading events...</p>
+      </div>
+    );
+  }
+
+  const supabase = getSupabase();
+  
+  const { data: events, error } = await supabase
+    .from('events')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to fetch events:', error);
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold mb-4">Events</h1>
+        <p className="text-red-400">Failed to load events</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-            <h2 className="text-3xl font-bold tracking-tight">Events</h2>
-            <p className="text-muted-foreground">
-            Manage your past and upcoming events.
-            </p>
-        </div>
-        <Button asChild>
-            <Link href="/dashboard/new">
-                <Plus className="mr-2 h-4 w-4" /> Create Event
-            </Link>
-        </Button>
+    <div className="p-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Events</h1>
+        <Link
+          href="/dashboard/new"
+          className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg"
+        >
+          + New Event
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {events.map((event: any) => (
-          <EventCard key={event.id} event={event} />
-        ))}
-        {events.length === 0 && (
-            <div className="col-span-full text-center py-12 text-muted-foreground">
-                No events found. Create your first one!
-            </div>
-        )}
-      </div>
+      {!events || events.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-gray-400 mb-4">No events yet</p>
+          <Link
+            href="/dashboard/new"
+            className="text-purple-400 hover:text-purple-300"
+          >
+            Create your first event ?
+          </Link>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {events.map((event) => (
+            <Link
+              key={event.id}
+              href={`/dashboard/events/${event.id}`}
+              className="block bg-[#1A1A1B] p-4 rounded-lg hover:bg-[#252526] transition"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="font-semibold">{event.name}</h2>
+                  <p className="text-gray-400 text-sm">{event.venue_name}</p>
+                </div>
+                <span
+                  className={`px-2 py-1 rounded text-xs ${
+                    event.status === 'live'
+                      ? 'bg-green-500/20 text-green-400'
+                      : event.status === 'ended'
+                      ? 'bg-gray-500/20 text-gray-400'
+                      : 'bg-yellow-500/20 text-yellow-400'
+                  }`}
+                >
+                  {event.status}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
-  )
+  );
 }
