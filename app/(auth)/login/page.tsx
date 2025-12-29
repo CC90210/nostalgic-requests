@@ -40,6 +40,9 @@ export default function LoginPage() {
         if (error) {
           if (error.message.includes("Invalid login credentials")) {
             toast.error("Invalid email or password");
+          } else if (error.message.includes("Email not confirmed")) {
+            toast.error("Please verify your email before signing in");
+            router.push(`/verify?email=${encodeURIComponent(formData.email)}`);
           } else {
             toast.error(error.message || "Failed to sign in");
           }
@@ -80,8 +83,9 @@ export default function LoginPage() {
           return;
         }
         
-        toast.success("Account created! Welcome to Nostalgic.");
-        router.push("/dashboard");
+        // Redirect to verification page
+        toast.success("Account created! Please check your email.");
+        router.push(`/verify?email=${encodeURIComponent(formData.email)}`);
       }
     } catch (error: any) {
       console.error("Auth error:", error);

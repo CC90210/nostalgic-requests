@@ -1,5 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getResend } from "@/lib/resend";
+import WelcomeEmail from "@/emails/WelcomeEmail";
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +47,25 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error("Profile insert error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Send Welcome Email
+    const resend = getResend();
+    if (resend) {
+      try {
+        await resend.emails.send({
+          from: "Nostalgic <onboarding@resend.dev>",
+          to: email,
+          subject: "Welcome to Nostalgic Requests!",
+          react: WelcomeEmail({ djName: dj_name }),
+        });
+        console.log("Welcome email sent to:", email);
+      } catch (emailError) {
+        console.error("Failed to send welcome email:", emailError);
+        // Don't fail the request if email fails
+      }
+    } else {
+      console.warn("RESEND_API_KEY not configured, skipping welcome email");
     }
 
     return NextResponse.json({ profile });
