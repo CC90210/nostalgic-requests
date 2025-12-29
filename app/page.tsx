@@ -1,1 +1,5 @@
-import Link from "next/link"; export default function Landing() { return ( <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4"> <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-purple-500 to-pink-500 text-transparent bg-clip-text">Nostalgic Requests</h1> <p className="text-xl mb-8">The ultimate song request platform for DJs.</p> <Link href="/dashboard" className="bg-white text-black px-6 py-3 rounded-full font-bold hover:bg-gray-200 transition"> DJ Login </Link> </div> ) }
+import { redirect } from 'next/navigation';
+
+export default function Home() {
+  redirect('/login');
+}
