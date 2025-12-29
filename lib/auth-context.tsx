@@ -28,7 +28,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Create Supabase client for auth
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -68,7 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = getSupabaseClient();
 
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -78,14 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Small delay to allow profile to be created
           setTimeout(() => fetchProfile(session.user.id), 500);
         } else {
           setProfile(null);
@@ -100,11 +96,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, djName: string, fullName?: string) => {
     const supabase = getSupabaseClient();
     
-    // First, create the auth user
+    // CRITICAL: Add emailRedirectTo to point to the auth callback route
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           dj_name: djName,
           full_name: fullName || "",
@@ -137,14 +134,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         const errorData = await response.json();
         console.error("Profile creation error:", errorData);
-        // Don't return error - user is created, profile can be created later
       }
     } catch (profileError) {
       console.error("Profile creation error:", profileError);
-      // Don't return error - user is created, profile can be created later
     }
 
-    // Fetch the profile after a short delay
     setTimeout(() => {
       if (authData.user) {
         fetchProfile(authData.user.id);
