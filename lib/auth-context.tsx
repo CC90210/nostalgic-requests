@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User } from "@supabase/supabase-js";
-import { getSupabase } from "./supabase";
+import { User, Session } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
 interface DJProfile {
   id: string;
@@ -17,6 +17,7 @@ interface DJProfile {
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   profile: DJProfile | null;
   loading: boolean;
   signUp: (email: string, password: string, djName: string, fullName?: string) => Promise<{ error: any }>;
@@ -27,22 +28,37 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Create Supabase client for auth
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!url || !key) {
+    throw new Error("Missing Supabase environment variables");
+  }
+  
+  return createClient(url, key);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<DJProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
     try {
-      const supabase = getSupabase();
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from("dj_profiles")
         .select("*")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
       if (!error && data) {
         setProfile(data);
+      } else if (error) {
+        console.error("Error fetching profile:", error);
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -50,10 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const supabase = getSupabase();
+    const supabase = getSupabaseClient();
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
@@ -64,9 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        setSession(session);
         setUser(session?.user ?? null);
+        
         if (session?.user) {
-          await fetchProfile(session.user.id);
+          // Small delay to allow profile to be created
+          setTimeout(() => fetchProfile(session.user.id), 500);
         } else {
           setProfile(null);
         }
@@ -78,55 +98,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, djName: string, fullName?: string) => {
-    const supabase = getSupabase();
+    const supabase = getSupabaseClient();
     
-    // 1. Sign up the user
-    const { data, error } = await supabase.auth.signUp({
+    // First, create the auth user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          dj_name: djName,
+          full_name: fullName || "",
+        }
+      }
     });
 
-    if (error) return { error };
+    if (authError) {
+      console.error("Auth error:", authError);
+      return { error: authError };
+    }
 
-    // 2. Create DJ profile
-    // Note: This might happen before the user has a chance to confirm email if confirmation is on.
-    // However, Supabase usually allows inserting rows if the user is authenticated (even if not confirmed yet in some settings)
-    // OR if RLS allows it.
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from("dj_profiles")
-        .insert({
-          user_id: data.user.id,
+    if (!authData.user) {
+      return { error: { message: "Failed to create user" } };
+    }
+
+    // Create DJ profile via API route (bypasses RLS)
+    try {
+      const response = await fetch("/api/auth/create-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: authData.user.id,
           email,
           dj_name: djName,
           full_name: fullName || null,
-        });
+        }),
+      });
 
-      if (profileError) {
-        console.error("Profile creation error:", profileError);
-        // We generally shouldn't fail the WHOLE signup if profile creation fails, 
-        // but it's important context.
-        return { error: profileError };
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Profile creation error:", errorData);
+        // Don't return error - user is created, profile can be created later
       }
-
-      await fetchProfile(data.user.id);
+    } catch (profileError) {
+      console.error("Profile creation error:", profileError);
+      // Don't return error - user is created, profile can be created later
     }
+
+    // Fetch the profile after a short delay
+    setTimeout(() => {
+      if (authData.user) {
+        fetchProfile(authData.user.id);
+      }
+    }, 1000);
 
     return { error: null };
   };
 
   const signIn = async (email: string, password: string) => {
-    const supabase = getSupabase();
-    const { error } = await supabase.auth.signInWithPassword({
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+    
+    if (!error && data.user) {
+      await fetchProfile(data.user.id);
+    }
+    
     return { error };
   };
 
   const signOut = async () => {
-    const supabase = getSupabase();
+    const supabase = getSupabaseClient();
     await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
     setProfile(null);
   };
 
@@ -137,7 +183,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      session, 
+      profile, 
+      loading, 
+      signUp, 
+      signIn, 
+      signOut, 
+      refreshProfile 
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -150,3 +205,4 @@ export function useAuth() {
   }
   return context;
 }
+

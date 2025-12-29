@@ -1,10 +1,10 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
-import { Music, Mail, Lock, User, Disc } from "lucide-react";
+import { Music, Mail, Lock, User, Disc, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -16,25 +16,48 @@ export default function LoginPage() {
     fullName: "",
   });
   
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, loading } = useAuth();
   const router = useRouter();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!loading && user) {
+      router.push("/dashboard");
+    }
+  }, [user, loading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isLoading) return;
+    
     setIsLoading(true);
 
     try {
       if (isLogin) {
+        // Sign In
         const { error } = await signIn(formData.email, formData.password);
         if (error) {
-          toast.error(error.message || "Failed to sign in");
-        } else {
-          toast.success("Welcome back!");
-          router.push("/dashboard");
+          if (error.message.includes("Invalid login credentials")) {
+            toast.error("Invalid email or password");
+          } else {
+            toast.error(error.message || "Failed to sign in");
+          }
+          setIsLoading(false);
+          return;
         }
+        toast.success("Welcome back!");
+        router.push("/dashboard");
       } else {
+        // Sign Up
         if (!formData.djName.trim()) {
           toast.error("Please enter your DJ name");
+          setIsLoading(false);
+          return;
+        }
+        
+        if (formData.password.length < 6) {
+          toast.error("Password must be at least 6 characters");
           setIsLoading(false);
           return;
         }
@@ -42,23 +65,39 @@ export default function LoginPage() {
         const { error } = await signUp(
           formData.email,
           formData.password,
-          formData.djName,
-          formData.fullName
+          formData.djName.trim(),
+          formData.fullName.trim() || undefined
         );
         
         if (error) {
-          toast.error(error.message || "Failed to create account");
-        } else {
-          toast.success("Account created! Welcome to Nostalgic.");
-          router.push("/dashboard");
+          if (error.message.includes("already registered")) {
+            toast.error("This email is already registered. Please sign in.");
+            setIsLogin(true);
+          } else {
+            toast.error(error.message || "Failed to create account");
+          }
+          setIsLoading(false);
+          return;
         }
+        
+        toast.success("Account created! Welcome to Nostalgic.");
+        router.push("/dashboard");
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Auth error:", error);
       toast.error("Something went wrong. Please try again.");
-    } finally {
       setIsLoading(false);
     }
   };
+
+  // Show loading while checking auth state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center p-4">
@@ -71,7 +110,7 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl mb-4 shadow-lg shadow-purple-500/30">
             <Music className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-600 bg-clip-text text-transparent">
@@ -81,15 +120,15 @@ export default function LoginPage() {
         </div>
 
         {/* Auth Card */}
-        <div className="bg-[#1A1A1B]/80 backdrop-blur-xl border border-[#2D2D2D] rounded-2xl p-8">
+        <div className="bg-[#1A1A1B]/80 backdrop-blur-xl border border-[#2D2D2D] rounded-2xl p-8 shadow-2xl">
           {/* Toggle */}
           <div className="flex bg-[#0A0A0B] rounded-xl p-1 mb-6">
             <button
               type="button"
               onClick={() => setIsLogin(true)}
-              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+              className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
                 isLogin
-                  ? "bg-purple-600 text-white"
+                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
                   : "text-gray-400 hover:text-white"
               }`}
             >
@@ -98,9 +137,9 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setIsLogin(false)}
-              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+              className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
                 !isLogin
-                  ? "bg-purple-600 text-white"
+                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
                   : "text-gray-400 hover:text-white"
               }`}
             >
@@ -123,8 +162,8 @@ export default function LoginPage() {
                       value={formData.djName}
                       onChange={(e) => setFormData({ ...formData, djName: e.target.value })}
                       placeholder="DJ Nostalgic"
-                      className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
-                      required={!isLogin}
+                      className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
@@ -140,7 +179,8 @@ export default function LoginPage() {
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                       placeholder="John Smith"
-                      className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+                      className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
@@ -159,8 +199,9 @@ export default function LoginPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="dj@example.com"
-                  className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+                  className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -177,13 +218,14 @@ export default function LoginPage() {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+                  className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                   required
                   minLength={6}
+                  disabled={isLoading}
                 />
               </div>
               {!isLogin && (
-                <p className="text-gray-500 text-xs mt-1">Minimum 6 characters</p>
+                <p className="text-gray-500 text-xs mt-2">Minimum 6 characters</p>
               )}
             </div>
 
@@ -191,18 +233,15 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full py-3 rounded-xl font-semibold transition-all ${
+              className={`w-full py-3.5 rounded-xl font-semibold text-white transition-all ${
                 isLoading
                   ? "bg-gray-600 cursor-not-allowed"
-                  : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-500/25"
+                  : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
               }`}
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   {isLogin ? "Signing in..." : "Creating account..."}
                 </span>
               ) : (
@@ -210,6 +249,20 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="mt-6 text-center">
+            <p className="text-gray-500 text-sm">
+              {isLogin ? "Don't have an account? " : "Already have an account? "}
+              <button
+                type="button"
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-purple-400 hover:text-purple-300 font-medium"
+              >
+                {isLogin ? "Sign up" : "Sign in"}
+              </button>
+            </p>
+          </div>
         </div>
 
         {/* Footer */}

@@ -1,108 +1,243 @@
-import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
-import { notFound } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft, Clock, MapPin, QrCode, User, Globe } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import QRCode from "qrcode"
-import { format } from "date-fns"
+﻿import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { 
+  ArrowLeft, 
+  Calendar, 
+  MapPin, 
+  Clock, 
+  QrCode, 
+  Copy, 
+  ExternalLink,
+  Play,
+  Square,
+  DollarSign,
+  Music
+} from "lucide-react";
+import QRCodeActions from "./QRCodeActions";
+import EventActions from "./EventActions";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export default async function EventDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-  if (!isSupabaseConfigured()) return <div>Loading...</div>;
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
 
-  const { id } = await params
+export default async function EventDetailsPage({ params }: PageProps) {
+  const resolvedParams = await params;
+  if (!isSupabaseConfigured()) {
+    return <div className="p-8 text-gray-400">Database not configured</div>;
+  }
+
   const supabase = getSupabase();
   
   const { data: event, error } = await supabase
     .from("events")
     .select("*")
-    .eq("id", id)
-    .single()
+    .eq("id", resolvedParams.id)
+    .single();
 
   if (error || !event) {
-    return notFound()
+    notFound();
   }
 
-  // Get QR Data URL
-  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/e/${event.unique_slug}`
-  const qrCodeDataUrl = await QRCode.toDataURL(portalUrl)
+  // Get request stats for this event
+  const { data: requests } = await supabase
+    .from("requests")
+    .select("amount_paid, status")
+    .eq("event_id", event.id);
+
+  const stats = {
+    totalRequests: requests?.length || 0,
+    totalRevenue: requests?.reduce((sum, r) => sum + Number(r.amount_paid || 0), 0) || 0,
+    pendingRequests: requests?.filter(r => r.status === "pending").length || 0,
+    playedRequests: requests?.filter(r => r.status === "played").length || 0,
+  };
+
+  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/e/${event.unique_slug}`;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/events">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <h1 className="text-3xl font-bold tracking-tight">{event.name}</h1>
-        <span className={`px-3 py-1 rounded-full text-sm font-medium border ${event.status === "live" ? "bg-red-500/10 text-red-500 border-red-500/20" : "bg-secondary text-muted-foreground"}`}>
-            {event.status.toUpperCase()}
-        </span>
-      </div>
+    <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Back Button */}
+        <Link
+          href="/dashboard/events"
+          className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Events
+        </Link>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-            <CardHeader>
-                <CardTitle>Event Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{event.venue_name} {event.venue_address && <span className="text-muted-foreground">({event.venue_address})</span>}</span>
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-8">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-white">{event.name}</h1>
+              <StatusBadge status={event.status} />
+            </div>
+            <p className="text-gray-400 flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              {event.venue_name}
+              {event.venue_address && ` • ${event.venue_address}`}
+            </p>
+          </div>
+          <EventActions event={event} />
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <StatCard icon={<DollarSign className="w-5 h-5" />} value={`$${stats.totalRevenue.toFixed(2)}`} label="Revenue" color="green" />
+          <StatCard icon={<Music className="w-5 h-5" />} value={stats.totalRequests.toString()} label="Total Requests" color="purple" />
+          <StatCard icon={<Clock className="w-5 h-5" />} value={stats.pendingRequests.toString()} label="Pending" color="yellow" />
+          <StatCard icon={<Play className="w-5 h-5" />} value={stats.playedRequests.toString()} label="Played" color="blue" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* QR Code Section */}
+          <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-purple-400" />
+              QR Code
+            </h2>
+            
+            {event.qr_code_url ? (
+              <div className="flex flex-col items-center">
+                <div className="bg-white p-4 rounded-xl mb-4">
+                  <img 
+                    src={event.qr_code_url} 
+                    alt="Event QR Code" 
+                    className="w-48 h-48"
+                  />
                 </div>
-                 <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>{format(new Date(event.start_time), "PPP p")}</span>
+                <QRCodeActions qrCodeUrl={event.qr_code_url} portalUrl={portalUrl} />
+              </div>
+            ) : (
+              <p className="text-gray-400 text-center py-8">QR code not generated</p>
+            )}
+
+            {/* Portal URL */}
+            <div className="mt-4 p-3 bg-[#0A0A0B] rounded-xl">
+              <p className="text-gray-400 text-xs mb-1">Public Portal URL</p>
+              <div className="flex items-center gap-2">
+                <code className="text-purple-400 text-sm flex-1 truncate">{portalUrl}</code>
+                <a
+                  href={portalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 hover:bg-[#2D2D2D] rounded-lg transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4 text-gray-400" />
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Event Details */}
+          <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-purple-400" />
+              Event Details
+            </h2>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-gray-400 text-sm">Date & Time</p>
+                <p className="text-white">
+                  {new Date(event.start_time).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </p>
+                <p className="text-gray-300">
+                  {new Date(event.start_time).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                  {" - "}
+                  {new Date(event.end_time).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-gray-400 text-sm">Event Type</p>
+                <p className="text-white capitalize">{event.event_type}</p>
+              </div>
+
+              {event.custom_message && (
+                <div>
+                  <p className="text-gray-400 text-sm">Custom Message</p>
+                  <p className="text-white">{event.custom_message}</p>
                 </div>
-                {event.custom_message && (
-                    <div className="p-3 bg-secondary/50 rounded-md text-sm italic">
-                        "{event.custom_message}"
-                    </div>
-                )}
-                 <Separator />
-                 <div className="flex gap-4 pt-2">
-                      <Button variant="outline" asChild>
-                          <Link href={`/dashboard/live`}>Open Live Dashboard</Link>
-                      </Button>
-                 </div>
-            </CardContent>
-        </Card>
+              )}
 
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <QrCode className="h-5 w-5" /> Request Portal
-                </CardTitle>
-                <CardDescription>Share this with guests to accept requests</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center space-y-4">
-               <div className="bg-white p-4 rounded-xl">
-                    <img src={qrCodeDataUrl} alt="QR Code" className="w-48 h-48" />
-               </div>
-               <div className="w-full text-center space-y-2">
-                   <p className="text-xs text-muted-foreground font-mono bg-secondary p-2 rounded break-all">
-                       {portalUrl}
-                   </p>
-                    <Button variant="secondary" className="w-full" asChild>
-                        <Link href={portalUrl} target="_blank">
-                            <Globe className="mr-2 h-4 w-4" /> Open Public Portal
-                        </Link>
-                    </Button>
-               </div>
-            </CardContent>
-        </Card>
-      </div>
+              <div>
+                <p className="text-gray-400 text-sm">Created</p>
+                <p className="text-white">
+                  {new Date(event.created_at).toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <div className="space-y-4">
-           <h2 className="text-xl font-bold">Recent Requests</h2>
-           <div className="p-8 border-2 border-dashed rounded-xl text-center text-muted-foreground">
-               Requests will appear here once the event starts.
-           </div>
+        {/* Live Dashboard Link */}
+        {event.status === "live" && (
+          <div className="mt-6">
+            <Link
+              href="/dashboard/live"
+              className="block w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl p-4 text-center text-white font-semibold transition-all shadow-lg shadow-purple-500/20"
+            >
+              Open Live Dashboard ?
+            </Link>
+          </div>
+        )}
       </div>
     </div>
-  )
+  );
 }
+
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    live: "bg-green-500/20 text-green-400 border-green-500/30",
+    ended: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+    draft: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  };
+
+  return (
+    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.draft}`}>
+      {status === "live" && <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 animate-pulse" />}
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
+  );
+}
+
+function StatCard({ icon, value, label, color }: { icon: React.ReactNode; value: string; label: string; color: string }) {
+  const colors: Record<string, string> = {
+    green: "text-green-400 bg-green-500/10",
+    purple: "text-purple-400 bg-purple-500/10",
+    yellow: "text-yellow-400 bg-yellow-500/10",
+    blue: "text-blue-400 bg-blue-500/10",
+  };
+
+  return (
+    <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-xl p-4">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${colors[color]}`}>
+        {icon}
+      </div>
+      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-gray-400 text-sm">{label}</div>
+    </div>
+  );
+}
+
