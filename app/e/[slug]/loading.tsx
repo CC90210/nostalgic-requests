@@ -1,8 +1,8 @@
-﻿import { Loader2 } from "lucide-react";
-export default function Loading() {
+﻿export default function Loading() {
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
-      <Loader2 className="h-10 w-10 animate-spin text-primary" />
+    <div className="flex h-screen w-full flex-col items-center justify-center bg-black gap-4">
+      <div className="h-12 w-12 rounded-full border-4 border-purple-500 border-t-transparent animate-spin" />
+      <h1 className="text-xl font-bold text-purple-500 animate-pulse">LOADING EVENT...</h1>
     </div>
   );
 }
