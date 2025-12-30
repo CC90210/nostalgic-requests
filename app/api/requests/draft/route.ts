@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Using Anon Key is fine for Drafts (Public)
+// Use Service Role to Bypass RLS (for Public Event Check)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, 
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, 
   { auth: { persistSession: false } }
 );
 
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
 
-        // 1. Verify Event is Eligible
+        // 1. Verify Event is Eligible (Uses Service Role to read Event status)
         const { data: event, error: eventError } = await supabase
             .from("events")
             .select("status, user_id")
@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
             created_at: new Date().toISOString()
         };
         
+        // Insert Request (Service Role also bypasses RLS for Insert, which is fine here as we validated Event)
         const { data, error } = await supabase.from("requests").insert(payload).select().single();
         
         if (error) {
