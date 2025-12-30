@@ -50,6 +50,15 @@ export async function POST(request: NextRequest) {
         }
     }
 
+    // SAFETY CHECK: If DJ is not ready, DO NOT process payment.
+    if (!destinationAccount) {
+        console.error(`[Checkout] Aborted. DJ for Event ${reqData.event_id} is not onboarded.`);
+        return NextResponse.json(
+            { error: "This DJ is not yet set up to receive payments. Please try again later." },
+            { status: 400 } // Bad Request implies current state invalid
+        );
+    }
+
     // 3. Create Stripe Session
     const amount = reqData.amount_paid;
     let description = "Song Request";
@@ -81,18 +90,16 @@ export async function POST(request: NextRequest) {
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/e/${eventSlug}/success?session_id={CHECKOUT_SESSION_ID}&song=${encodeURIComponent(reqData.song_title)}&artist=${encodeURIComponent(reqData.song_artist)}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/e/${eventSlug}`,
       customer_email: requesterEmail || reqData.requester_email || undefined,
+      
+      // SPLIT PAYMENT MAGIC
+      payment_intent_data: {
+        transfer_data: {
+            destination: destinationAccount,
+        },
+        // Platform Fee: 5%
+        application_fee_amount: Math.round(amount * 100 * 0.05),
+      }
     };
-
-    // 4. Add Transfer Data (If DJ is Connected)
-    if (destinationAccount) {
-        sessionParams.payment_intent_data = {
-            transfer_data: {
-                destination: destinationAccount,
-            },
-            // Platform Fee (e.g., 5%)
-            application_fee_amount: Math.round(amount * 100 * 0.05),
-        };
-    }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
 

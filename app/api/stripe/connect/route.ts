@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
 
 // Init Supabase Admin
@@ -18,15 +17,15 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Get Profile
-    let { data: profile, error: profileError } = await supabase
+    let { data: profile } = await supabase
       .from("dj_profiles")
       .select("stripe_account_id, email, dj_name")
       .eq("user_id", userId)
       .single();
 
-    // SELF HEALING
+    // SELF HEALING PROTOCOL
     if (!profile) {
-      console.log(`[Connect] Profile missing for ${userId}. Attempting self-healing...`);
+      console.log(`[Connect] Profile missing for ${userId}. Initiating Self-Healing...`);
       const { data: newProfile, error: createError } = await supabase
         .from("dj_profiles")
         .upsert({ 
@@ -39,16 +38,12 @@ export async function POST(req: NextRequest) {
 
       if (createError) {
         console.error("Self-healing failed:", createError);
-        return NextResponse.json({ error: "Failed to create profile" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to create profile automatically." }, { status: 500 });
       }
       profile = newProfile;
     }
 
-    const stripe = getStripe(); // This must return the Server SDK instance in this context? 
-    // Usually getStripe() is for loadStripe (Client). 
-    // I should use "new Stripe" here to be safe server-side, forcing secret key.
-    // However, existing code might relying on it? 
-    // I will replace getStripe() with explicit import to prevent Client/Server mismatch errors.
+    // Initialize Stripe Server-Side
     const Stripe = require("stripe");
     const stripeServer = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -56,42 +51,59 @@ export async function POST(req: NextRequest) {
 
     // 2. Create Stripe Account if missing
     if (!accountId) {
-      const account = await stripeServer.accounts.create({
-        type: "express",
-        country: "US", // Default to US for MVP (Changeable later)
-        email: profile.email || undefined,
-        capabilities: {
-          transfers: { requested: true },
-        },
-        business_profile: {
-          name: profile.dj_name || "DJ Platform User",
-        },
-      });
-      accountId = account.id;
+      try {
+          const account = await stripeServer.accounts.create({
+            type: "express",
+            country: "US",
+            email: profile.email || undefined,
+            capabilities: {
+              transfers: { requested: true },
+            },
+            business_profile: {
+              name: profile.dj_name || "DJ Platform User",
+            },
+          });
+          accountId = account.id;
 
-      // Save to DB
-      await supabase
-        .from("dj_profiles")
-        .update({ stripe_account_id: accountId })
-        .eq("user_id", userId);
+          // Save to DB
+          await supabase
+            .from("dj_profiles")
+            .update({ stripe_account_id: accountId })
+            .eq("user_id", userId);
+
+      } catch (stripeErr: any) {
+          console.error("Stripe Account Creation Failed:", stripeErr);
+          return NextResponse.json(
+              { error: `Stripe Configuration Error: ${stripeErr.message}` }, 
+              { status: 400 }
+          );
+      }
     }
 
     // 3. Create Account Link (Onboarding)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
-    const refreshUrl = `${appUrl}/dashboard/settings?onboarding=canceled`; 
-    const returnUrl = `${appUrl}/api/stripe/connect/return?user_id=${userId}`; 
+    try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
+        const refreshUrl = `${appUrl}/dashboard/settings?onboarding=canceled`; 
+        const returnUrl = `${appUrl}/api/stripe/connect/return?user_id=${userId}`; 
 
-    const accountLink = await stripeServer.accountLinks.create({
-      account: accountId,
-      refresh_url: refreshUrl,
-      return_url: returnUrl,
-      type: "account_onboarding",
-    });
+        const accountLink = await stripeServer.accountLinks.create({
+          account: accountId,
+          refresh_url: refreshUrl,
+          return_url: returnUrl,
+          type: "account_onboarding",
+        });
 
-    return NextResponse.json({ url: accountLink.url });
+        return NextResponse.json({ url: accountLink.url });
+    } catch (linkErr: any) {
+         console.error("Stripe Link Creation Failed:", linkErr);
+         return NextResponse.json(
+            { error: `Stripe Link Error: ${linkErr.message}` }, 
+            { status: 400 }
+        );
+    }
 
   } catch (error: any) {
-    console.error("Stripe Connect Error:", error);
+    console.error("Stripe Connect Fatal Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
