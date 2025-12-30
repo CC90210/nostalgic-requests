@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { notFound, useParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 import { 
   ArrowLeft, 
   Calendar, 
@@ -23,9 +23,8 @@ import EventQRCode from "@/components/dashboard/EventQRCode";
 import LocalTimeDisplay from "@/components/dashboard/LocalTimeDisplay";
 import EventPricingEditor from "@/components/dashboard/EventPricingEditor";
 
-// Helper for Client-Side Supabase (RLS Safe)
 function getClientSupabase() {
-    return createClient(
+    return createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
@@ -241,7 +240,7 @@ export default function EventDetailsPage() {
     </div>
   );
 }
-//... StatusBadge and StatCard below same as before
+
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     live: "bg-green-500/20 text-green-400 border-green-500/30",
