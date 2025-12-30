@@ -26,10 +26,12 @@ export default async function MyEventsPage() {
     redirect("/login");
   }
 
-  // 2. Fetch Events (RLS Enforced by Cookie)
+  // 2. Fetch Events (FORCE FILTER by User ID)
+  // This ensures "DJ Kenny" ONLY gets Kenny's events, regardless of key permissions.
   const { data: eventsData, error } = await supabase
     .from("events")
     .select("*")
+    .eq("user_id", user.id) // <--- CRITICAL SECURITY FIX
     .order("created_at", { ascending: false });
 
   if (error) {

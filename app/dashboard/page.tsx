@@ -17,7 +17,7 @@ export default async function DashboardPage() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
-           // Server Components cannot set cookies, strictly read-only for auth verification
+           // Read-only logic for Server Components
         },
       },
     }
@@ -30,17 +30,19 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // 2. Fetch Profile (For name)
+  // 2. Fetch Profile
   const { data: profile } = await supabase
     .from("dj_profiles")
     .select("*")
     .eq("user_id", user.id)
     .single();
 
-  // 3. Fetch Events (RLS Enforced by Cookie)
+  // 3. Fetch Events (FORCE FILTER by User ID)
+  // This acts as a double-lock protecting data even if RLS is broken.
   const { data: eventsData } = await supabase
     .from("events")
     .select("*")
+    .eq("user_id", user.id) // <--- CRITICAL SECURITY FIX
     .order("start_time", { ascending: false });
 
   const events = eventsData || [];
