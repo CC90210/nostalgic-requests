@@ -16,6 +16,7 @@ import QRCodeActions from "./QRCodeActions";
 import EventActions from "./EventActions";
 import EventQRCode from "@/components/dashboard/EventQRCode";
 import LocalTimeDisplay from "@/components/dashboard/LocalTimeDisplay";
+import EventPricingEditor from "@/components/dashboard/EventPricingEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -60,9 +61,18 @@ export default async function EventDetailsPage({ params }: PageProps) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
   const portalUrl = `${appUrl}/e/${event.unique_slug}`;
 
+  const initialPricing = {
+    price_single: Number(event.price_single) || 5,
+    price_double: Number(event.price_double) || 8,
+    price_party: Number(event.price_party) || 12,
+    price_priority: Number(event.price_priority) || 10,
+    price_shoutout: Number(event.price_shoutout) || 5,
+    price_guaranteed: Number(event.price_guaranteed) || 20,
+  };
+
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <Link
           href="/dashboard/events"
           className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
@@ -86,14 +96,15 @@ export default async function EventDetailsPage({ params }: PageProps) {
           <EventActions event={event} />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard icon={<DollarSign className="w-5 h-5" />} value={`$${stats.totalRevenue.toFixed(2)}`} label="Revenue" color="green" />
           <StatCard icon={<Music className="w-5 h-5" />} value={stats.totalRequests.toString()} label="Total Requests" color="purple" />
           <StatCard icon={<Clock className="w-5 h-5" />} value={stats.pendingRequests.toString()} label="Pending" color="yellow" />
           <StatCard icon={<Play className="w-5 h-5" />} value={stats.playedRequests.toString()} label="Played" color="blue" />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* 1. QR Code */}
           <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-6">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <QrCode className="w-5 h-5 text-purple-400" />
@@ -124,6 +135,10 @@ export default async function EventDetailsPage({ params }: PageProps) {
             </div>
           </div>
 
+          {/* 2. Pricing Editor */}
+          <EventPricingEditor eventId={event.id} initialPricing={initialPricing} />
+
+          {/* 3. Event Details */}
           <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-6">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-purple-400" />
