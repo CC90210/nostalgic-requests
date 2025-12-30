@@ -33,17 +33,30 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh Session if needed
+  // Refresh Session
   const { data: { user }, error } = await supabase.auth.getUser();
 
   const isProtected = request.nextUrl.pathname.startsWith("/dashboard") || 
                       request.nextUrl.pathname.startsWith("/my-events");
 
-  // If INVALID and Protected -> Force Login
+  // IF TOKEN IS INVALID: FORCE LOGOUT & NUKE COOKIES
   if ((!user || error) && isProtected) {
        const url = request.nextUrl.clone();
        url.pathname = "/login";
-       return NextResponse.redirect(url);
+       const redirectResponse = NextResponse.redirect(url);
+
+       // Clear all potential Supabase cookies to prevent loops
+       const allCookies = request.cookies.getAll();
+       allCookies.forEach(cookie => {
+           if (cookie.name.startsWith("sb-")) {
+               redirectResponse.cookies.delete(cookie.name);
+           }
+       });
+       // Also delete generic ones just in case
+       redirectResponse.cookies.delete("sb-access-token");
+       redirectResponse.cookies.delete("sb-refresh-token");
+
+       return redirectResponse;
   }
 
   return response;
