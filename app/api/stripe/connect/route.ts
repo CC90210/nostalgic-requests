@@ -16,6 +16,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
+    // SUPER ADMIN BLOCK
+    if (email && email.toLowerCase() === "konamak@icloud.com") {
+        console.log("Platform Owner attempted Connect. Blocking.");
+        return NextResponse.json({ error: "Platform Owner cannot connect as a sub-account." }, { status: 400 });
+    }
+
     // 1. Get Profile
     let { data: profile } = await supabase
       .from("dj_profiles")

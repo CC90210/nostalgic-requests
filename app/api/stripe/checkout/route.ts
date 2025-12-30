@@ -37,20 +37,25 @@ export async function POST(request: NextRequest) {
         .single();
 
     let destinationAccount = null;
+    let isPlatformOwner = false;
 
     if (eventData?.user_id) {
         const { data: profile } = await supabase
             .from("dj_profiles")
-            .select("stripe_account_id, stripe_onboarding_complete")
+            .select("stripe_account_id, stripe_onboarding_complete, email")
             .eq("user_id", eventData.user_id)
             .single();
         
-        if (profile?.stripe_account_id && profile?.stripe_onboarding_complete) {
+        // CHECK SUPER ADMIN
+        if (profile?.email && profile.email.toLowerCase() === "konamak@icloud.com") {
+             isPlatformOwner = true;
+             destinationAccount = "PLATFORM_OWNER"; // Bypass signal
+        } else if (profile?.stripe_account_id && profile?.stripe_onboarding_complete) {
             destinationAccount = profile.stripe_account_id;
         }
     }
 
-    // SAFETY CHECK: If DJ is not ready, DO NOT process payment.
+    // SAFETY CHECK: If DJ is not ready (and not Owner), DO NOT process payment.
     if (!destinationAccount) {
         console.error(`[Checkout] Aborted. DJ for Event ${reqData.event_id} is not onboarded.`);
         return NextResponse.json(
@@ -90,14 +95,22 @@ export async function POST(request: NextRequest) {
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/e/${eventSlug}/success?session_id={CHECKOUT_SESSION_ID}&song=${encodeURIComponent(reqData.song_title)}&artist=${encodeURIComponent(reqData.song_artist)}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/e/${eventSlug}`,
       customer_email: requesterEmail || reqData.requester_email || undefined,
-      
-      payment_intent_data: {
-        transfer_data: {
-            destination: destinationAccount,
-        },
-        application_fee_amount: Math.round(amount * 100 * 0.05),
-      }
     };
+
+    // TRANSFER LOGIC
+    if (isPlatformOwner) {
+         // Direct Charge logic. No Transfer Data. No Fee.
+         // Stripe funds go directly to the Platform Account Balance.
+         console.log(`[Checkout] Processing Direct Charge for Platform Owner`);
+    } else {
+         // Connect Charge logic.
+         sessionParams.payment_intent_data = {
+            transfer_data: {
+                destination: destinationAccount,
+            },
+            application_fee_amount: Math.round(amount * 100 * 0.05),
+         };
+    }
 
     try {
         const session = await stripe.checkout.sessions.create(sessionParams);

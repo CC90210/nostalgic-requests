@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
-import { User, Phone, FileText, Image, Loader2, Save, Disc, Banknote, ExternalLink, CheckCircle, Info, Sparkles } from "lucide-react";
+import { User, Phone, FileText, Image, Loader2, Save, Disc, Banknote, ExternalLink, CheckCircle, Info, Sparkles, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -80,7 +80,7 @@ export default function SettingsPage() {
       }
 
       await refreshProfile();
-      router.refresh(); // Update server components (Sidebar etc)
+      router.refresh(); 
       toast.success("Profile updated!");
     } catch (error: any) {
       toast.error(error.message || "Something went wrong");
@@ -124,7 +124,10 @@ export default function SettingsPage() {
      );
   }
 
-  const isStripeConnected = profile.stripe_onboarding_complete;
+  // SUPER ADMIN LOGIC
+  const isPlatformOwner = user.email?.toLowerCase() === "konamak@icloud.com";
+  const isStripeConnected = profile.stripe_onboarding_complete || isPlatformOwner;
+
   const isNewDJ = profile.dj_name === "New DJ" || !profile.dj_name;
 
   return (
@@ -158,8 +161,9 @@ export default function SettingsPage() {
                     Payouts & Banking
                 </h2>
                 {isStripeConnected && (
-                    <span className="flex items-center gap-1 text-green-400 text-sm font-bold bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
-                        <CheckCircle className="w-4 h-4" /> Active
+                    <span className={`flex items-center gap-1 text-sm font-bold px-3 py-1 rounded-full border ${isPlatformOwner ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>
+                        {isPlatformOwner ? <Crown className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                        {isPlatformOwner ? "Platform Owner" : "Active"}
                     </span>
                 )}
             </div>
@@ -180,24 +184,30 @@ export default function SettingsPage() {
             
             <p className="text-gray-400 mb-6 text-sm">
                 {isStripeConnected 
-                    ? "Your bank account is connected. You receive payouts instantly when requests are made."
+                    ? (isPlatformOwner ? "You are the platform owner. All payments are routed directly to your main Stripe account." : "Your bank account is connected. You receive payouts instantly when requests are made.")
                     : "Connect your bank account to start accepting paid song requests. We use Stripe for secure payouts."
                 }
             </p>
 
-            {isStripeConnected ? (
-                 <Button onClick={handleConnectStripe} variant="outline" className="w-full border-gray-700 hover:bg-gray-800 text-white">
-                    <ExternalLink className="w-4 h-4 mr-2" /> Manage Stripe Account
-                 </Button>
+            {isPlatformOwner ? (
+                 <div className="text-yellow-500 text-sm italic">
+                    Super Admin Mode Active: Direct Payouts
+                 </div>
             ) : (
-                <Button 
-                    onClick={handleConnectStripe} 
-                    disabled={isConnecting}
-                    className="w-full bg-[#635BFF] hover:bg-[#534be0] text-white font-bold h-12"
-                >
-                    {isConnecting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5 mr-2" />}
-                    Connect with Stripe
-                </Button>
+                isStripeConnected ? (
+                    <Button onClick={handleConnectStripe} variant="outline" className="w-full border-gray-700 hover:bg-gray-800 text-white">
+                        <ExternalLink className="w-4 h-4 mr-2" /> Manage Stripe Account
+                    </Button>
+                ) : (
+                    <Button 
+                        onClick={handleConnectStripe} 
+                        disabled={isConnecting}
+                        className="w-full bg-[#635BFF] hover:bg-[#534be0] text-white font-bold h-12"
+                    >
+                        {isConnecting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5 mr-2" />}
+                        Connect with Stripe
+                    </Button>
+                )
             )}
         </div>
 

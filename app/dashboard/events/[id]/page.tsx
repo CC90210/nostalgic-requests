@@ -127,6 +127,10 @@ export default function EventDetailsPage() {
     price_guaranteed: Number(event.price_guaranteed) || 20,
   };
 
+  // SUPER ADMIN OVERRIDE
+  const isPlatformOwner = user?.email?.toLowerCase() === "konamak@icloud.com";
+  const hasPayouts = !!profile?.stripe_onboarding_complete || isPlatformOwner;
+
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
@@ -150,7 +154,7 @@ export default function EventDetailsPage() {
               {event.venue_address && ` - ${event.venue_address}`}
             </p>
           </div>
-          <EventActions event={event} hasPayouts={!!profile?.stripe_onboarding_complete} />
+          <EventActions event={event} hasPayouts={hasPayouts} />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
