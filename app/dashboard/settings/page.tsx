@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
-import { User, Phone, FileText, Image, Loader2, Save, Disc, Banknote, ExternalLink, CheckCircle, Info } from "lucide-react";
+import { User, Phone, FileText, Image, Loader2, Save, Disc, Banknote, ExternalLink, CheckCircle, Info, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const { user, profile, loading, refreshProfile } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -26,8 +27,9 @@ export default function SettingsPage() {
     if (searchParams.get("onboarding") === "success") {
         toast.success("Payouts connected successfully! You are ready to Go Live.");
         refreshProfile(); 
+        router.refresh();
     }
-  }, [searchParams, refreshProfile]);
+  }, [searchParams, refreshProfile, router]);
 
   useEffect(() => {
     if (profile) {
@@ -59,7 +61,6 @@ export default function SettingsPage() {
     }
     setIsSaving(true);
     try {
-      // Use Admin API to guarantee update works (Bypasses potential RLS issues)
       const response = await fetch("/api/user/update", {
          method: "POST",
          headers: { "Content-Type": "application/json" },
@@ -79,6 +80,7 @@ export default function SettingsPage() {
       }
 
       await refreshProfile();
+      router.refresh(); // Update server components (Sidebar etc)
       toast.success("Profile updated!");
     } catch (error: any) {
       toast.error(error.message || "Something went wrong");
@@ -123,6 +125,7 @@ export default function SettingsPage() {
   }
 
   const isStripeConnected = profile.stripe_onboarding_complete;
+  const isNewDJ = profile.dj_name === "New DJ" || !profile.dj_name;
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
@@ -133,6 +136,19 @@ export default function SettingsPage() {
           <h1 className="text-3xl font-bold text-white">Settings</h1>
           <p className="text-gray-400 mt-2">Manage your DJ profile and payout settings.</p>
         </div>
+
+        {/* New DJ Banner */}
+        {isNewDJ && (
+            <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-l-4 border-purple-500 p-4 rounded-r-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="p-2 bg-purple-500/20 rounded-full">
+                    <Sparkles className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                    <p className="font-bold text-white">Let's set up your profile!</p>
+                    <p className="text-sm text-gray-300">Your current name is "New DJ". Pick a stage name below to look professional to fans.</p>
+                </div>
+            </div>
+        )}
 
         {/* Payouts Card */}
         <div className="bg-[#1A1A1B] rounded-2xl p-6 border border-[#2D2D2D]">

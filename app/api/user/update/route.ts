@@ -10,7 +10,7 @@ const supabase = createClient(
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userId, dj_name, phone, bio, profile_image_url, full_name } = body;
+        const { userId, dj_name, full_name, phone, bio, profile_image_url } = body;
         
         if (!userId) {
              return NextResponse.json({ error: "Missing User ID" }, { status: 400 });
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
                 full_name,
                 phone,
                 bio,
-                profile_image_url
+                profile_image_url,
+                updated_at: new Date().toISOString()
             })
             .eq("user_id", userId);
 

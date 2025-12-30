@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${appUrl}/dashboard/settings?error=missing_user`);
     }
 
-    // 1. Fetch Profile to get Account ID
+    // 1. Fetch Profile
     const { data: profile } = await supabase
         .from("dj_profiles")
         .select("stripe_account_id")
@@ -34,8 +34,8 @@ export async function GET(req: NextRequest) {
     // 2. Verify with Stripe
     const account = await stripe.accounts.retrieve(profile.stripe_account_id);
 
-    if (account.charges_enabled) {
-        // SUCCESS
+    // Allow if charges enabled OR if they submitted details (pending verification)
+    if (account.charges_enabled || account.details_submitted) {
         await supabase
             .from("dj_profiles")
             .update({ stripe_onboarding_complete: true })
@@ -43,9 +43,7 @@ export async function GET(req: NextRequest) {
             
         return NextResponse.redirect(`${appUrl}/dashboard/settings?onboarding=success`);
     } else {
-        // INCOMPLETE
-        // They might have just closed the window or needs checking info
-        // We do NOT mark as complete.
+        // They likely clicked "Skip this for now" or just closed the window
         return NextResponse.redirect(`${appUrl}/dashboard/settings?onboarding=incomplete`);
     }
 
