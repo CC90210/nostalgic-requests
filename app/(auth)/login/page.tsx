@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -21,10 +21,11 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // If user is already loaded, HARD Redirect to Dashboard.
     if (!loading && user) {
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     }
-  }, [user, loading, router]);
+  }, [user, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,11 +48,12 @@ export default function LoginPage() {
           return;
         }
         
+        // SUCCESS: Force Hard Reload
         toast.success("Welcome back!");
-        router.push("/dashboard");
+        window.location.href = "/dashboard"; // <--- THE FIX
         
       } else {
-        // === SIGN UP (ATOMIC - Must save all data) ===
+        // === SIGN UP ===
         
         // Validation
         if (!formData.djName.trim()) {
@@ -59,20 +61,17 @@ export default function LoginPage() {
           setIsLoading(false);
           return;
         }
-        
         if (!formData.phone.trim()) {
           toast.error("Please enter your phone number");
           setIsLoading(false);
           return;
         }
-        
         if (formData.password.length < 6) {
           toast.error("Password must be at least 6 characters");
           setIsLoading(false);
           return;
         }
         
-        // ATOMIC signup - waits for profile to be saved
         const { error, profile } = await signUp(
           formData.email,
           formData.password,
@@ -82,21 +81,19 @@ export default function LoginPage() {
         );
         
         if (error) {
-          // Signup failed OR profile creation failed
           if (error.message.includes("already registered")) {
             toast.error("This email is already registered. Please sign in.");
             setIsLogin(true);
           } else {
-            toast.error(error.message || "Account creation failed. Please try again.");
+            toast.error(error.message || "Account creation failed");
           }
           setIsLoading(false);
           return;
         }
 
-        // Only redirect if we have confirmed profile
         if (profile) {
           toast.success("Account created successfully!");
-          router.push("/dashboard");
+          window.location.href = "/dashboard"; // <--- THE FIX
         } else {
           toast.error("Account created but profile save failed. Please sign in.");
           setIsLogin(true);
@@ -248,7 +245,7 @@ export default function LoginPage() {
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="••••••••"
+                  placeholder="********"
                   className="w-full pl-11 pr-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                   required
                   minLength={6}
@@ -302,4 +299,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

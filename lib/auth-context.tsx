@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 interface DJProfile {
   id: string;
@@ -28,14 +28,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-let supabaseInstance: SupabaseClient | null = null;
+let supabaseInstance: any | null = null;
 
-function getSupabaseClient(): SupabaseClient {
+function getSupabaseClient() {
   if (supabaseInstance) return supabaseInstance;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) throw new Error("Missing Supabase environment variables");
-  supabaseInstance = createClient(url, key);
+  
+  // USE BROWSER CLIENT (SSR COMPATIBLE)
+  supabaseInstance = createBrowserClient(url, key);
   return supabaseInstance;
 }
 
@@ -45,26 +47,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<DJProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch profile via API (bypasses RLS)
+  // Fetch profile via API (bypasses RLS logic if needed, but we prefer strict)
   const fetchProfile = useCallback(async (userId: string): Promise<DJProfile | null> => {
-    console.log("[Auth] Fetching profile via API for:", userId);
-    
+    // console.log("[Auth] Fetching profile via API for:", userId);
     try {
       const response = await fetch("/api/auth/get-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId }),
       });
-
       const result = await response.json();
-
       if (result.profile) {
-        console.log("[Auth] Profile loaded:", result.profile.dj_name);
         setProfile(result.profile);
         return result.profile;
       }
-      
-      console.log("[Auth] No profile found");
       setProfile(null);
       return null;
     } catch (error) {
@@ -98,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      async (event: any, newSession: any) => {
         if (!mounted) return;
 
         if (event === "SIGNED_OUT") {
@@ -106,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setProfile(null);
           setLoading(false);
+          // router refresh handled by components
           return;
         }
 
@@ -123,8 +120,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string): Promise<{ error: any; profile?: DJProfile }> => {
     const supabase = getSupabaseClient();
-    
-    console.log("[Auth] Signup:", email, "DJ:", djName);
     
     const { data: authData, error: authError } = await supabase.auth.signUp({ 
       email, 
@@ -162,8 +157,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const supabase = getSupabaseClient();
     
-    console.log("[Auth] Sign in:", email);
-    
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) return { error };
@@ -179,10 +172,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     const supabase = getSupabaseClient();
+    await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setProfile(null);
-    await supabase.auth.signOut();
+    // Hard refresh handled by component if needed
   };
 
   const refreshProfile = async (): Promise<DJProfile | null> => {
@@ -202,4 +196,3 @@ export function useAuth() {
   if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }
-
