@@ -8,48 +8,67 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { user_id, email, dj_name, full_name, phone } = body;
+    const { user_id, email, dj_name, phone, full_name } = body;
 
     console.log("[Create Profile API] Data:", { user_id, email, dj_name, phone });
 
     if (!user_id || !email) {
-      console.log("[Create Profile API] Missing user_id or email");
-      return NextResponse.json(
-        { error: "Missing required fields: user_id and email" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing user_id or email" }, { status: 400 });
     }
 
-    // Use SERVICE_ROLE_KEY to bypass ALL RLS policies
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Use UPSERT to create if new, update if exists (prevents duplicate errors)
-    const { data: profile, error } = await supabaseAdmin
-      .from("dj_profiles")
-      .upsert(
-        {
-          user_id,
-          email,
-          dj_name: dj_name || email.split("@")[0], // Fallback to email username
-          full_name: full_name || null,
-          phone: phone || null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" }
-      )
-      .select()
-      .single();
+    // RETRY LOGIC: Wait for auth user to be fully committed
+    let retries = 3;
+    let profile = null;
+    let lastError = null;
 
-    if (error) {
-      console.error("[Create Profile API] Upsert error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    while (retries > 0 && !profile) {
+      try {
+        // Small delay to let auth user commit
+        if (retries < 3) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        const { data, error } = await supabaseAdmin
+          .from("dj_profiles")
+          .upsert(
+            {
+              user_id,
+              email,
+              dj_name: dj_name || email.split("@")[0],
+              full_name: full_name || null,
+              phone: phone || null,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" }
+          )
+          .select()
+          .single();
+
+        if (error) {
+          lastError = error;
+          console.log(`[Create Profile API] Attempt failed, ${retries - 1} retries left:`, error.message);
+          retries--;
+        } else {
+          profile = data;
+          console.log("[Create Profile API] SUCCESS:", profile?.dj_name);
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.log(`[Create Profile API] Exception, ${retries - 1} retries left:`, err.message);
+        retries--;
+      }
     }
 
-    console.log("[Create Profile API] SUCCESS - Profile:", profile?.dj_name);
+    if (!profile) {
+      console.error("[Create Profile API] All retries failed:", lastError);
+      return NextResponse.json({ error: lastError?.message || "Failed to create profile" }, { status: 500 });
+    }
 
     // Send Welcome Email (non-blocking)
     const resend = getResend();
@@ -65,10 +84,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, profile });
   } catch (error: any) {
     console.error("[Create Profile API] Exception:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
   }
 }
 
