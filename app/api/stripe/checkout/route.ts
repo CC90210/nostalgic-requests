@@ -56,10 +56,11 @@ export async function POST(request: NextRequest) {
         },
       ],
       metadata: {
-        request_id: requestId, // THE GOLDEN KEY
-        event_slug: eventSlug || "unknown", // For redirect fallback
+        request_id: requestId,
+        event_slug: eventSlug || "unknown",
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/e/${eventSlug}/success?session_id={CHECKOUT_SESSION_ID}`,
+      // Pass Song info to success page for social sharing
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/e/${eventSlug}/success?session_id={CHECKOUT_SESSION_ID}&song=${encodeURIComponent(reqData.song_title)}&artist=${encodeURIComponent(reqData.song_artist)}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/e/${eventSlug}`,
       customer_email: requesterEmail || reqData.requester_email || undefined,
     });

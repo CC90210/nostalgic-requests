@@ -78,8 +78,8 @@ export function SongSearch({ onSelect, disabled }: SongSearchProps) {
           </div>
         ) : (
           <div className="text-center py-12 text-muted-foreground">
-            <p className="mb-2">??</p>
-            Start typing to find a song
+            {/* Artifact removed */}
+            <p className="mb-2">Start typing to find a song</p>
           </div>
         )}
       </ScrollArea>
