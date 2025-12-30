@@ -69,7 +69,10 @@ export default function CreateEventPage() {
   };
 
   const handleCreate = async () => {
-    if (!user) return;
+    if (!user) {
+        toast.error("You must be logged in.");
+        return;
+    }
     if (!name || !venue || !date) {
         toast.error("Please fill in all required fields");
         return;
@@ -92,7 +95,7 @@ export default function CreateEventPage() {
       const { data, error } = await supabase
         .from("events")
         .insert({
-          user_id: user.id, 
+          user_id: user.id, // Explicit ID attachment
           name,
           venue_name: venue,
           start_time: startObj.toISOString(),
@@ -114,6 +117,7 @@ export default function CreateEventPage() {
 
       toast.success("Event created successfully!");
       router.push(`/dashboard/events/${data.id}`);
+      router.refresh(); 
       
     } catch (error: any) {
       console.error("Create failed:", error);

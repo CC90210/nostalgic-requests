@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo } from "react";
+import { ReactNode, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { 
   LayoutDashboard, 
@@ -23,7 +23,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      console.log("[Dashboard Layout] No user, redirecting to login");
       router.push("/login");
     }
   }, [user, loading, router]);
@@ -41,15 +40,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   const handleSignOut = async () => {
-    console.log("[Dashboard Layout] Sign out clicked");
     await signOut();
-    router.push("/login");
+    localStorage.clear(); 
+    sessionStorage.clear();
+    window.location.href = "/login"; 
   };
 
-  // FLICKER FIX: Prioritize Metadata (Available Instantly)
-  const displayName = user?.user_metadata?.dj_name || profile?.dj_name || user?.email?.split("@")[0] || "DJ";
-  const displayEmail = profile?.email || user?.email || "";
-  const profileImage = profile?.profile_image_url || user?.user_metadata?.profile_image_url || null;
+  const displayName = user?.user_metadata?.dj_name || user?.user_metadata?.full_name || profile?.dj_name || user?.email?.split("@")[0] || "DJ";
+  const displayEmail = user?.email || "";
+  const profileImage = user?.user_metadata?.profile_image_url || profile?.profile_image_url || null;
 
   const navItems = [
     { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
