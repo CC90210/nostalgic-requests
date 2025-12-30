@@ -1,6 +1,10 @@
-import { createClient } from "@supabase/supabase-js";
-import { notFound } from "next/navigation";
+"use client";
+
+import { useState, useEffect } from "react";
+import { notFound, useParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@supabase/supabase-js";
 import { 
   ArrowLeft, 
   Calendar, 
@@ -10,7 +14,8 @@ import {
   Play,
   DollarSign,
   Music,
-  Clock
+  Clock,
+  Loader2
 } from "lucide-react";
 import QRCodeActions from "./QRCodeActions";
 import EventActions from "./EventActions";
@@ -18,48 +23,98 @@ import EventQRCode from "@/components/dashboard/EventQRCode";
 import LocalTimeDisplay from "@/components/dashboard/LocalTimeDisplay";
 import EventPricingEditor from "@/components/dashboard/EventPricingEditor";
 
-export const dynamic = "force-dynamic";
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+// Helper for Client-Side Supabase (RLS Safe)
+function getClientSupabase() {
+    return createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 }
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
+export default function EventDetailsPage() {
+  const { id } = useParams();
+  const { user, loading: authLoading } = useAuth();
+  const [event, setEvent] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-export default async function EventDetailsPage({ params }: PageProps) {
-  const resolvedParams = await params;
-  const supabase = getSupabaseAdmin();
-  
-  const { data: event, error } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", resolvedParams.id)
-    .single();
+  useEffect(() => {
+    // Wait for auth to be ready
+    if (authLoading) return;
+    
+    if (!user) {
+        // Redirect handled by middleware/layout usually, but safe fail here
+        setLoading(false);
+        return;
+    }
 
-  if (error || !event) {
-    notFound();
+    const fetchData = async () => {
+        try {
+            const supabase = getClientSupabase();
+            const eventId = Array.isArray(id) ? id[0] : id;
+
+            // 1. Fetch Event (RLS Filtered)
+            const { data: eventData, error: eventError } = await supabase
+                .from("events")
+                .select("*")
+                .eq("id", eventId)
+                .single();
+
+            if (eventError) throw eventError;
+            if (!eventData) throw new Error("Event not found");
+
+            setEvent(eventData);
+
+            // 2. Fetch Stats (RLS Filtered by Policy + explicit check)
+            const { data: requests, error: reqError } = await supabase
+                .from("requests")
+                .select("amount_paid, status")
+                .eq("event_id", eventId)
+                .eq("is_paid", true);
+
+            if (reqError) console.error("Stats error:", reqError); // Non-fatal
+
+            const statsData = {
+                totalRequests: requests?.length || 0,
+                totalRevenue: requests?.reduce((sum, r) => sum + Number(r.amount_paid || 0), 0) || 0,
+                pendingRequests: requests?.filter(r => r.status === "pending").length || 0,
+                playedRequests: requests?.filter(r => r.status === "played").length || 0,
+            };
+            setStats(statsData);
+
+        } catch (err: any) {
+            console.error("Detail fetch error:", err);
+            setError(err.message || "Failed to load event");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    fetchData();
+  }, [id, user, authLoading]);
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+      </div>
+    );
   }
 
-  // STRICT SCOPE: Only requests for THIS event AND only PAID requests
-  // This prevents draft/abandoned carts from bloating stats, and prevents leakage across events.
-  const { data: requests } = await supabase
-    .from("requests")
-    .select("amount_paid, status")
-    .eq("event_id", event.id)
-    .eq("is_paid", true); 
-
-  const stats = {
-    totalRequests: requests?.length || 0,
-    totalRevenue: requests?.reduce((sum, r) => sum + Number(r.amount_paid || 0), 0) || 0,
-    pendingRequests: requests?.filter(r => r.status === "pending").length || 0,
-    playedRequests: requests?.filter(r => r.status === "played").length || 0,
-  };
+  if (error || !event) {
+    return (
+        <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center p-4">
+            <div className="text-center">
+                <h2 className="text-xl text-red-500 font-bold mb-2">Access Denied or Not Found</h2>
+                <p className="text-gray-400 mb-4">{error || "You do not have permission to view this event."}</p>
+                <Link href="/dashboard/events" className="text-purple-400 hover:text-purple-300 underline">
+                    Return to My Events
+                </Link>
+            </div>
+        </div>
+    );
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
   const portalUrl = `${appUrl}/e/${event.unique_slug}`;
@@ -100,10 +155,10 @@ export default async function EventDetailsPage({ params }: PageProps) {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard icon={<DollarSign className="w-5 h-5" />} value={`$${stats.totalRevenue.toFixed(2)}`} label="Revenue" color="green" />
-          <StatCard icon={<Music className="w-5 h-5" />} value={stats.totalRequests.toString()} label="Total Requests" color="purple" />
-          <StatCard icon={<Clock className="w-5 h-5" />} value={stats.pendingRequests.toString()} label="Pending" color="yellow" />
-          <StatCard icon={<Play className="w-5 h-5" />} value={stats.playedRequests.toString()} label="Played" color="blue" />
+          <StatCard icon={<DollarSign className="w-5 h-5" />} value={`$${stats?.totalRevenue.toFixed(2) || "0.00"}`} label="Revenue" color="green" />
+          <StatCard icon={<Music className="w-5 h-5" />} value={stats?.totalRequests.toString() || "0"} label="Total Requests" color="purple" />
+          <StatCard icon={<Clock className="w-5 h-5" />} value={stats?.pendingRequests.toString() || "0"} label="Pending" color="yellow" />
+          <StatCard icon={<Play className="w-5 h-5" />} value={stats?.playedRequests.toString() || "0"} label="Played" color="blue" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -151,7 +206,6 @@ export default async function EventDetailsPage({ params }: PageProps) {
             <div className="space-y-4">
               <div>
                 <p className="text-gray-400 text-sm mb-1">Date & Time</p>
-                {/* UTC Corrected Time Display */}
                 <LocalTimeDisplay start={event.start_time} end={event.end_time} />
               </div>
 

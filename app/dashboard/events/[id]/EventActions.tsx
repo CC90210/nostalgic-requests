@@ -1,9 +1,17 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Play, Square, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { createClient } from "@supabase/supabase-js";
+
+function getClientSupabase() {
+    return createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+}
 
 interface EventActionsProps {
   event: {
@@ -19,20 +27,22 @@ export default function EventActions({ event }: EventActionsProps) {
   const updateStatus = async (newStatus: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/events/${event.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
+      const supabase = getClientSupabase();
+      
+      const { error } = await supabase
+        .from("events")
+        .update({ status: newStatus })
+        .eq("id", event.id);
 
-      if (!response.ok) {
-        throw new Error("Failed to update event");
-      }
+      if (error) throw error;
 
       toast.success(`Event ${newStatus === "live" ? "is now live!" : "has ended"}`);
       router.refresh();
-    } catch (error) {
-      toast.error("Failed to update event status");
+      // Force reload to update UI state if router.refresh is slow
+      window.location.reload(); 
+    } catch (error: any) {
+      console.error("Update error:", error);
+      toast.error("Failed to update status");
     } finally {
       setIsLoading(false);
     }
@@ -45,17 +55,19 @@ export default function EventActions({ event }: EventActionsProps) {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/events/${event.id}`, {
-        method: "DELETE",
-      });
+      const supabase = getClientSupabase();
+      
+      const { error } = await supabase
+        .from("events")
+        .delete()
+        .eq("id", event.id);
 
-      if (!response.ok) {
-        throw new Error("Failed to delete event");
-      }
+      if (error) throw error;
 
       toast.success("Event deleted");
       router.push("/dashboard/events");
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Delete error:", error);
       toast.error("Failed to delete event");
     } finally {
       setIsLoading(false);
@@ -96,4 +108,3 @@ export default function EventActions({ event }: EventActionsProps) {
     </div>
   );
 }
-

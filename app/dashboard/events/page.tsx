@@ -5,6 +5,15 @@ import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import { CalendarDays, Plus, Loader2, MapPin } from "lucide-react";
 import LocalTimeDisplay from "@/components/dashboard/LocalTimeDisplay";
+import { createClient } from "@supabase/supabase-js";
+
+// Helper to get client with session automatically handled by browser
+function getClientSupabase() {
+    return createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+}
 
 interface Event {
   id: string;
@@ -28,17 +37,24 @@ export default function EventsPage() {
       }
 
       try {
-        const response = await fetch("/api/events");
-        const data = await response.json();
+        // DIRECT SUPABASE QUERY (RLS ENFORCED)
+        // Instead of insecure /api/events, we query directly. 
+        // RLS ensures we only get events where user_id === auth.uid()
+        const supabase = getClientSupabase();
         
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setEvents(data.events || []);
+        const { data, error: dbError } = await supabase
+            .from("events")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+        if (dbError) {
+          throw dbError;
         }
-      } catch (err) {
+
+        setEvents(data || []);
+      } catch (err: any) {
         console.error("Events fetch error:", err);
-        setError("Failed to load events");
+        setError("Failed to load events: " + err.message);
       } finally {
         setEventsLoading(false);
       }
