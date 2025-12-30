@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import { DollarSign, Calendar, Music, Users, Plus, List, Loader2 } from "lucide-react";
+import { getSupabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
   const { user, profile, loading } = useAuth();
@@ -24,18 +25,37 @@ export default function DashboardPage() {
       }
 
       try {
-        // Fetch events via API to bypass RLS
+        // 1. Fetch Events
         const response = await fetch("/api/events");
         const data = await response.json();
         
         if (data.events) {
           const events = data.events;
           const liveEvent = events.find((e: any) => e.status === "live") || null;
+          const eventIds = events.map((e: any) => e.id);
+
+          // 2. Fetch Requests Stats safely (is_paid = true)
+          const supabase = getSupabase();
+          let totalRevenue = 0;
+          let totalRequests = 0;
+
+          if (eventIds.length > 0) {
+              const { data: validRequests, error } = await supabase
+                .from("requests")
+                .select("amount_paid")
+                .in("event_id", eventIds)
+                .eq("is_paid", true);
+
+              if (!error && validRequests) {
+                  totalRequests = validRequests.length;
+                  totalRevenue = validRequests.reduce((sum, r) => sum + (r.amount_paid || 0), 0);
+              }
+          }
           
           setStats({
-            totalRevenue: 0,
+            totalRevenue,
             totalEvents: events.length,
-            totalRequests: 0,
+            totalRequests,
             liveEvent,
             recentEvents: events.slice(0, 5),
           });
@@ -190,4 +210,3 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
-
