@@ -46,10 +46,13 @@ export default async function EventDetailsPage({ params }: PageProps) {
     notFound();
   }
 
+  // STRICT SCOPE: Only requests for THIS event AND only PAID requests
+  // This prevents draft/abandoned carts from bloating stats, and prevents leakage across events.
   const { data: requests } = await supabase
     .from("requests")
     .select("amount_paid, status")
-    .eq("event_id", event.id);
+    .eq("event_id", event.id)
+    .eq("is_paid", true); 
 
   const stats = {
     totalRequests: requests?.length || 0,
