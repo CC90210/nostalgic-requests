@@ -35,7 +35,20 @@ export async function POST(req: Request) {
         return new Response("Missing request_id", { status: 200 }); 
     }
 
-    // Update Request as Paid
+    // IDEMPOTENCY CHECK
+    const { data: existingRequest } = await supabase
+        .from("requests")
+        .select("is_paid, id")
+        .eq("id", requestId)
+        .single();
+
+    if (existingRequest?.is_paid) {
+        console.log(`[Webhook] Request ${requestId} already processed. Skipping.`);
+        return new Response("Idempotent Success", { status: 200 });
+    }
+
+    console.log(`?? Processing Payment for Request ID: ${requestId}`);
+
     const { data: updatedReq, error: updateError } = await supabase
         .from("requests")
         .update({
@@ -53,11 +66,9 @@ export async function POST(req: Request) {
         return new Response("Update Failed", { status: 200 }); 
     }
 
-    // Legacy/Global Lead Logic (Deprecating or Scoping?)
-    // NEW: Scoped Lead Logic (Multi-Tenant)
+    // Scoped Lead Logic (Multi-Tenant)
     if (updatedReq && updatedReq.requester_phone) {
-        // Fetch the Event Owner (DJ)
-        const { data: eventData, error: eventError } = await supabase
+        const { data: eventData } = await supabase
             .from("events")
             .select("user_id")
             .eq("id", updatedReq.event_id)
@@ -85,9 +96,6 @@ export async function POST(req: Request) {
                      email
                  }).eq("id", existingLead.id);
              } else {
-                 // Insert New Lead for THIS DJ
-                 // Note: If leads table lacks user_id column yet, this will fail silently/error.
-                 // The Migration SQL must be run.
                  await supabase.from("leads").insert({
                      user_id: djId, 
                      name: updatedReq.requester_name,
