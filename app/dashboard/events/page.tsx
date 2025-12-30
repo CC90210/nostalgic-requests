@@ -2,29 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { CalendarDays, Plus, Loader2, MapPin } from "lucide-react";
-
-function getSupabaseClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
 
 interface Event {
   id: string;
   name: string;
   venue_name: string;
-  venue_address: string | null;
   status: string;
   start_time: string;
-  created_at: string;
 }
 
 export default function EventsPage() {
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,26 +27,16 @@ export default function EventsPage() {
       }
 
       try {
-        const supabase = getSupabaseClient();
+        const response = await fetch("/api/events");
+        const data = await response.json();
         
-        // Fetch all events - in a production app with RLS, this would be filtered automatically
-        // For now, we fetch all events (since dj_id might not be set on all events)
-        console.log("[Events] Fetching events...");
-        
-        const { data, error } = await supabase
-          .from("events")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (error) {
-          console.error("[Events] Fetch error:", error);
-          setError(error.message);
+        if (data.error) {
+          setError(data.error);
         } else {
-          console.log("[Events] Fetched:", data?.length || 0, "events");
-          setEvents(data || []);
+          setEvents(data.events || []);
         }
       } catch (err) {
-        console.error("[Events] Exception:", err);
+        console.error("Events fetch error:", err);
         setError("Failed to load events");
       } finally {
         setEventsLoading(false);
@@ -68,13 +48,10 @@ export default function EventsPage() {
     }
   }, [user, loading]);
 
-  if (loading || eventsLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-purple-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading events...</p>
-        </div>
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
       </div>
     );
   }
@@ -82,22 +59,26 @@ export default function EventsPage() {
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white">My Events</h1>
-            <p className="text-gray-400 mt-1">Manage your DJ gigs and song requests</p>
+            <p className="text-gray-400 mt-1">Manage your DJ gigs</p>
           </div>
           <Link
             href="/dashboard/new"
-            className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-4 py-2 rounded-xl text-white font-medium transition-all shadow-lg shadow-purple-500/20"
+            className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-4 py-2 rounded-xl text-white font-medium transition-all"
           >
             <Plus className="w-5 h-5" />
             New Event
           </Link>
         </div>
 
-        {error ? (
+        {eventsLoading ? (
+          <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-12 text-center">
+            <Loader2 className="w-8 h-8 text-purple-500 animate-spin mx-auto mb-4" />
+            <p className="text-gray-400">Loading events...</p>
+          </div>
+        ) : error ? (
           <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6 text-center">
             <p className="text-red-400">{error}</p>
           </div>
@@ -129,15 +110,17 @@ export default function EventsPage() {
                       <MapPin className="w-4 h-4" />
                       {event.venue_name}
                     </p>
-                    <p className="text-gray-500 text-sm mt-2">
-                      {new Date(event.start_time).toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </p>
+                    {event.start_time && (
+                      <p className="text-gray-500 text-sm mt-2">
+                        {new Date(event.start_time).toLocaleDateString("en-US", {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    )}
                   </div>
                   <StatusBadge status={event.status} />
                 </div>
