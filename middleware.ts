@@ -1,35 +1,36 @@
 ﻿import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Public routes that don't need auth check
-  const publicRoutes = ["/login", "/signup", "/"];
-  const isPublicRoute = publicRoutes.includes(pathname);
-  
-  // Event pages are always public
-  const isEventPage = pathname.startsWith("/e/");
-  
-  // API routes handle their own auth
-  const isApiRoute = pathname.startsWith("/api/");
+  // PUBLIC ROUTES - No auth check needed
+  // These routes are accessible to everyone without login
+  const publicPatterns = [
+    "/",           // Homepage
+    "/login",      // Login page
+    "/signup",     // Signup page
+    "/e/",         // Event portals (public song request pages)
+    "/api/",       // API routes (handle their own auth)
+  ];
 
-  // Skip auth check for public routes, event pages, and API routes
-  if (isPublicRoute || isEventPage || isApiRoute) {
+  // Check if this is a public route
+  const isPublic = publicPatterns.some(pattern => pathname.startsWith(pattern) || pathname === pattern);
+
+  if (isPublic) {
+    // Let public routes pass through immediately - NO AUTH CHECK
     return NextResponse.next();
   }
 
-  // For dashboard routes, we let the client-side handle the redirect
-  // This avoids issues with server-side session checking
+  // For all other routes (dashboard, etc.), let client-side handle auth
   // The dashboard layout already checks auth and redirects if not logged in
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    // Match all routes except static files and _next
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Match all routes EXCEPT static files, images, and Next.js internals
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
 

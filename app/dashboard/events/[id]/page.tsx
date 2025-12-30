@@ -1,4 +1,4 @@
-﻿import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
+﻿import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -7,10 +7,8 @@ import {
   MapPin, 
   Clock, 
   QrCode, 
-  Copy, 
   ExternalLink,
   Play,
-  Square,
   DollarSign,
   Music
 } from "lucide-react";
@@ -19,17 +17,21 @@ import EventActions from "./EventActions";
 
 export const dynamic = "force-dynamic";
 
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function EventDetailsPage({ params }: PageProps) {
   const resolvedParams = await params;
-  if (!isSupabaseConfigured()) {
-    return <div className="p-8 text-gray-400">Database not configured</div>;
-  }
-
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
   
   const { data: event, error } = await supabase
     .from("events")
@@ -41,7 +43,6 @@ export default async function EventDetailsPage({ params }: PageProps) {
     notFound();
   }
 
-  // Get request stats for this event
   const { data: requests } = await supabase
     .from("requests")
     .select("amount_paid, status")
@@ -54,12 +55,13 @@ export default async function EventDetailsPage({ params }: PageProps) {
     playedRequests: requests?.filter(r => r.status === "played").length || 0,
   };
 
-  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/e/${event.unique_slug}`;
+  // Use production URL for portal
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
+  const portalUrl = `${appUrl}/e/${event.unique_slug}`;
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
-        {/* Back Button */}
         <Link
           href="/dashboard/events"
           className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
@@ -68,7 +70,6 @@ export default async function EventDetailsPage({ params }: PageProps) {
           Back to Events
         </Link>
 
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -84,7 +85,6 @@ export default async function EventDetailsPage({ params }: PageProps) {
           <EventActions event={event} />
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <StatCard icon={<DollarSign className="w-5 h-5" />} value={`$${stats.totalRevenue.toFixed(2)}`} label="Revenue" color="green" />
           <StatCard icon={<Music className="w-5 h-5" />} value={stats.totalRequests.toString()} label="Total Requests" color="purple" />
@@ -93,7 +93,6 @@ export default async function EventDetailsPage({ params }: PageProps) {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* QR Code Section */}
           <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-6">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <QrCode className="w-5 h-5 text-purple-400" />
@@ -103,11 +102,7 @@ export default async function EventDetailsPage({ params }: PageProps) {
             {event.qr_code_url ? (
               <div className="flex flex-col items-center">
                 <div className="bg-white p-4 rounded-xl mb-4">
-                  <img 
-                    src={event.qr_code_url} 
-                    alt="Event QR Code" 
-                    className="w-48 h-48"
-                  />
+                  <img src={event.qr_code_url} alt="Event QR Code" className="w-48 h-48" />
                 </div>
                 <QRCodeActions qrCodeUrl={event.qr_code_url} portalUrl={portalUrl} />
               </div>
@@ -115,7 +110,6 @@ export default async function EventDetailsPage({ params }: PageProps) {
               <p className="text-gray-400 text-center py-8">QR code not generated</p>
             )}
 
-            {/* Portal URL */}
             <div className="mt-4 p-3 bg-[#0A0A0B] rounded-xl">
               <p className="text-gray-400 text-xs mb-1">Public Portal URL</p>
               <div className="flex items-center gap-2">
@@ -132,7 +126,6 @@ export default async function EventDetailsPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Event Details */}
           <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-6">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-purple-400" />
@@ -174,31 +167,17 @@ export default async function EventDetailsPage({ params }: PageProps) {
                   <p className="text-white">{event.custom_message}</p>
                 </div>
               )}
-
-              <div>
-                <p className="text-gray-400 text-sm">Created</p>
-                <p className="text-white">
-                  {new Date(event.created_at).toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </div>
             </div>
           </div>
         </div>
 
-        {/* Live Dashboard Link */}
         {event.status === "live" && (
           <div className="mt-6">
             <Link
               href="/dashboard/live"
               className="block w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl p-4 text-center text-white font-semibold transition-all shadow-lg shadow-purple-500/20"
             >
-              Open Live Dashboard ?
+              Open Live Dashboard
             </Link>
           </div>
         )}
