@@ -1,36 +1,56 @@
-﻿import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
 
-  // PUBLIC ROUTES - No auth check needed
-  // These routes are accessible to everyone without login
-  const publicPatterns = [
-    "/",           // Homepage
-    "/login",      // Login page
-    "/signup",     // Signup page
-    "/e/",         // Event portals (public song request pages)
-    "/api/",       // API routes (handle their own auth)
-  ];
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value);
+          });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
 
-  // Check if this is a public route
-  const isPublic = publicPatterns.some(pattern => pathname.startsWith(pattern) || pathname === pattern);
+  // Refresh Session if needed
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (isPublic) {
-    // Let public routes pass through immediately - NO AUTH CHECK
-    return NextResponse.next();
+  const isProtected = request.nextUrl.pathname.startsWith("/dashboard") || 
+                      request.nextUrl.pathname.startsWith("/my-events");
+
+  // If INVALID and Protected -> Force Login
+  if ((!user || error) && isProtected) {
+       const url = request.nextUrl.clone();
+       url.pathname = "/login";
+       return NextResponse.redirect(url);
   }
 
-  // For all other routes (dashboard, etc.), let client-side handle auth
-  // The dashboard layout already checks auth and redirects if not logged in
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
   matcher: [
-    // Match all routes EXCEPT static files, images, and Next.js internals
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
-
