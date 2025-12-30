@@ -45,32 +45,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<DJProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // FETCH ONLY - Never create during sign-in
+  // Fetch profile via API (bypasses RLS)
   const fetchProfile = useCallback(async (userId: string): Promise<DJProfile | null> => {
-    const supabase = getSupabaseClient();
+    console.log("[Auth] Fetching profile via API for:", userId);
     
-    console.log("[Auth] Fetching existing profile for user_id:", userId);
-    
-    const { data, error } = await supabase
-      .from("dj_profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
+    try {
+      const response = await fetch("/api/auth/get-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
 
-    if (error) {
-      console.error("[Auth] Profile fetch error:", error.message);
+      const result = await response.json();
+
+      if (result.profile) {
+        console.log("[Auth] Profile loaded:", result.profile.dj_name);
+        setProfile(result.profile);
+        return result.profile;
+      }
+      
+      console.log("[Auth] No profile found");
+      setProfile(null);
+      return null;
+    } catch (error) {
+      console.error("[Auth] Profile fetch error:", error);
+      setProfile(null);
       return null;
     }
-
-    if (data) {
-      console.log("[Auth] Profile loaded:", data.dj_name);
-      setProfile(data);
-      return data;
-    }
-    
-    console.log("[Auth] No profile found for this user");
-    setProfile(null);
-    return null;
   }, []);
 
   useEffect(() => {
@@ -85,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (currentSession?.user) {
           setSession(currentSession);
           setUser(currentSession.user);
-          // Just fetch - don't create
           await fetchProfile(currentSession.user.id);
         }
       } catch (error) {
@@ -112,7 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newSession?.user) {
           setSession(newSession);
           setUser(newSession.user);
-          // Just fetch - don't create
           await fetchProfile(newSession.user.id);
         }
         setLoading(false);
@@ -122,7 +121,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; subscription.unsubscribe(); };
   }, [fetchProfile]);
 
-  // SIGNUP: Create auth user AND profile
   const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string): Promise<{ error: any; profile?: DJProfile }> => {
     const supabase = getSupabaseClient();
     
@@ -131,26 +129,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: authData, error: authError } = await supabase.auth.signUp({ 
       email, 
       password,
-      options: {
-        data: { dj_name: djName, phone: phone, full_name: fullName || null }
-      }
+      options: { data: { dj_name: djName, phone: phone, full_name: fullName || null } }
     });
     
     if (authError) return { error: authError };
     if (!authData.user) return { error: { message: "Failed to create user" } };
 
-    // Create profile
     try {
       const response = await fetch("/api/auth/create-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          user_id: authData.user.id, 
-          email, 
-          dj_name: djName, 
-          phone: phone, 
-          full_name: fullName || null 
-        }),
+        body: JSON.stringify({ user_id: authData.user.id, email, dj_name: djName, phone, full_name: fullName || null }),
       });
       
       const result = await response.json();
@@ -170,7 +159,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // SIGNIN: Only fetch existing profile - NEVER create
   const signIn = async (email: string, password: string) => {
     const supabase = getSupabaseClient();
     
@@ -183,7 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data.user) {
       setSession(data.session);
       setUser(data.user);
-      // Just fetch existing profile - NO creation
       await fetchProfile(data.user.id);
     }
     
