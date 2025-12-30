@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Play, Square, Trash2, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Play, Square, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
 
@@ -18,9 +19,10 @@ interface EventActionsProps {
     id: string;
     status: string;
   };
+  hasPayouts: boolean;
 }
 
-export default function EventActions({ event }: EventActionsProps) {
+export default function EventActions({ event, hasPayouts }: EventActionsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -38,7 +40,6 @@ export default function EventActions({ event }: EventActionsProps) {
 
       toast.success(`Event ${newStatus === "live" ? "is now live!" : "has ended"}`);
       router.refresh();
-      // Force reload to update UI state if router.refresh is slow
       window.location.reload(); 
     } catch (error: any) {
       console.error("Update error:", error);
@@ -77,14 +78,24 @@ export default function EventActions({ event }: EventActionsProps) {
   return (
     <div className="flex gap-2">
       {event.status === "draft" && (
-        <button
-          onClick={() => updateStatus("live")}
-          disabled={isLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-xl text-white font-medium transition-colors disabled:opacity-50"
-        >
-          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          Go Live
-        </button>
+        !hasPayouts ? (
+            <Link 
+                href="/dashboard/settings"
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-500/50 rounded-xl text-yellow-400 font-medium transition-colors"
+            >
+                <AlertTriangle className="w-4 h-4" />
+                Setup Payouts to Go Live
+            </Link>
+        ) : (
+            <button
+            onClick={() => updateStatus("live")}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-xl text-white font-medium transition-colors disabled:opacity-50"
+            >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            Go Live
+            </button>
+        )
       )}
       
       {event.status === "live" && (

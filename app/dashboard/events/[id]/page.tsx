@@ -33,7 +33,7 @@ function getClientSupabase() {
 
 export default function EventDetailsPage() {
   const { id } = useParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [event, setEvent] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +44,6 @@ export default function EventDetailsPage() {
     if (authLoading) return;
     
     if (!user) {
-        // Redirect handled by middleware/layout usually, but safe fail here
         setLoading(false);
         return;
     }
@@ -66,14 +65,14 @@ export default function EventDetailsPage() {
 
             setEvent(eventData);
 
-            // 2. Fetch Stats (RLS Filtered by Policy + explicit check)
+            // 2. Fetch Stats
             const { data: requests, error: reqError } = await supabase
                 .from("requests")
                 .select("amount_paid, status")
                 .eq("event_id", eventId)
                 .eq("is_paid", true);
 
-            if (reqError) console.error("Stats error:", reqError); // Non-fatal
+            if (reqError) console.error("Stats error:", reqError);
 
             const statsData = {
                 totalRequests: requests?.length || 0,
@@ -106,7 +105,7 @@ export default function EventDetailsPage() {
     return (
         <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center p-4">
             <div className="text-center">
-                <h2 className="text-xl text-red-500 font-bold mb-2">Access Denied or Not Found</h2>
+                <h2 className="text-xl text-red-500 font-bold mb-2">Access Denied</h2>
                 <p className="text-gray-400 mb-4">{error || "You do not have permission to view this event."}</p>
                 <Link href="/dashboard/events" className="text-purple-400 hover:text-purple-300 underline">
                     Return to My Events
@@ -151,7 +150,7 @@ export default function EventDetailsPage() {
               {event.venue_address && ` - ${event.venue_address}`}
             </p>
           </div>
-          <EventActions event={event} />
+          <EventActions event={event} hasPayouts={!!profile?.stripe_onboarding_complete} />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -238,7 +237,7 @@ export default function EventDetailsPage() {
     </div>
   );
 }
-
+//... StatusBadge and StatCard below same as before
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     live: "bg-green-500/20 text-green-400 border-green-500/30",
