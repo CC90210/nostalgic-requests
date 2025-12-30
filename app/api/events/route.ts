@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
 
@@ -44,7 +44,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, venue_name, venue_address, start_time, end_time, event_type, custom_message } = body;
+    const { 
+        name, venue_name, venue_address, start_time, end_time, event_type, custom_message,
+        price_single, price_double, price_party, 
+        price_priority, price_shoutout, price_guaranteed
+    } = body;
 
     if (!name || !venue_name || !start_time || !end_time) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -77,10 +81,18 @@ export async function POST(request: NextRequest) {
         end_time,
         event_type: event_type || "other",
         custom_message: custom_message || null,
-        base_price: 5.00,
         status: "draft",
         unique_slug,
         qr_code_url,
+        
+        // Dynamic Pricing
+        price_single: price_single || 5.00,
+        price_double: price_double || 8.00,
+        price_party: price_party || 12.00,
+        price_priority: price_priority || 10.00,
+        price_shoutout: price_shoutout || 5.00,
+        price_guaranteed: price_guaranteed || 20.00,
+        base_price: price_single || 5.00 // Legacy sync
       })
       .select()
       .single();
@@ -96,4 +108,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
