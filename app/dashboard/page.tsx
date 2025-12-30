@@ -4,7 +4,14 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import { DollarSign, Calendar, Music, Users, Plus, List, Loader2 } from "lucide-react";
-import { getSupabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+function getClientSupabase() {
+    return createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+}
 
 export default function DashboardPage() {
   const { user, profile, loading } = useAuth();
@@ -22,11 +29,21 @@ export default function DashboardPage() {
       if (!user) return;
 
       try {
-        // 1. Fetch Events (First Paint)
-        const response = await fetch("/api/events");
-        const data = await response.json();
+        const supabase = getClientSupabase();
         
-        const events = data.events || [];
+        // 1. Fetch Events Directly (RLS Enforced)
+        // Replaces insecure /api/events call
+        const { data: eventsData, error: eventError } = await supabase
+            .from("events")
+            .select("*")
+            .order("start_time", { ascending: false });
+
+        if (eventError) {
+             console.error("Events fetch error:", eventError);
+             return;
+        }
+        
+        const events = eventsData || [];
         const liveEvent = events.find((e: any) => e.status === "live") || null;
         
         // Progressive Update: Show Events immediately
@@ -40,7 +57,6 @@ export default function DashboardPage() {
         // 2. Fetch Revenue (Second Paint)
         const eventIds = events.map((e: any) => e.id);
         if (eventIds.length > 0) {
-            const supabase = getSupabase();
             const { data: validRequests, error } = await supabase
               .from("requests")
               .select("amount_paid")
