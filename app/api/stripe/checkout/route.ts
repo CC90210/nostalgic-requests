@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     const total = calculateTotal({ package: packageType, addons });
+    const primarySong = songs[0] || {};
     
     // Package Description
     const packageInfo = PRICING.packages[packageType as keyof typeof PRICING.packages];
@@ -34,30 +35,30 @@ export async function POST(request: NextRequest) {
     if (addons.guaranteedNext) description += " + Guaranteed Next";
 
     // Metadata Packing
-    // Note: Stripe metadata values MUST be strings and limit is ~500 keys/chars.
-    // We store the full JSON song list in 'songs_json' and summary in 'song_title'
-    const primarySong = songs[0];
-    const songSummary = songs.length > 1 
-        ? `${primarySong.title} (+${songs.length - 1} others)`
-        : primarySong.title;
-
+    // CRITICAL: We map specific fields for the Webhook to use easily
     const metadata: any = {
       event_id: eventId,
       event_slug: eventSlug,
       requester_name: requesterName || "Anonymous",
-      requester_phone: requesterPhone, // CRITICAL FOR LEADS
-      requester_email: requesterEmail || "",
+      requester_phone: requesterPhone || "", 
+      // Capture Email specifically as requested
+      customer_email: requesterEmail || "",
+      requester_email: requesterEmail || "", // Redundant buf safe
+      
       package_type: packageType,
       is_priority: String(addons.priority || false),
       is_shoutout: String(addons.shoutout || false),
-      is_guaranteed: String(addons.guaranteedNext || false), // Note key mapping
+      is_guaranteed: String(addons.guaranteedNext || false),
+      
       amount_paid: String(total),
       song_count: String(songs.length),
-      // Store full data needed for DB
-      songs_json: JSON.stringify(songs).substring(0, 450), // Truncate safety
-      // Summary fields for quick access
-      song_title_display: songSummary,
-      primary_artist: primarySong.artist,
+      
+      // JSON Data
+      songs_json: JSON.stringify(songs).substring(0, 450), 
+      
+      // Explicit fallback for artwork to ensure it exists in metadata if needed
+      song_image: primarySong.artworkUrl || "",
+      song_title_display: primarySong.title || "Unknown Song",
     };
 
     const session = await stripe.checkout.sessions.create({
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `Request: ${songSummary}`,
+              name: `Request: ${primarySong.title || "Song Request"}`,
               description: description,
               images: primarySong.artworkUrl ? [primarySong.artworkUrl] : [],
             },
