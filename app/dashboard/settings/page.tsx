@@ -3,17 +3,9 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
-import { createClient } from "@supabase/supabase-js";
-import { User, Phone, FileText, Image, Loader2, Save, Disc, RefreshCw, Banknote, ExternalLink, CheckCircle, Info } from "lucide-react";
+import { User, Phone, FileText, Image, Loader2, Save, Disc, Banknote, ExternalLink, CheckCircle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
-
-function getSupabaseClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
 
 export default function SettingsPage() {
   const { user, profile, loading, refreshProfile } = useAuth();
@@ -67,19 +59,25 @@ export default function SettingsPage() {
     }
     setIsSaving(true);
     try {
-      const supabase = getSupabaseClient();
-      const { error } = await supabase
-        .from("dj_profiles")
-        .update({
-          dj_name: formData.dj_name.trim(),
-          full_name: formData.full_name.trim() || null,
-          phone: formData.phone.trim() || null,
-          bio: formData.bio.trim() || null,
-          profile_image_url: formData.profile_image_url.trim() || null,
-        })
-        .eq("user_id", user.id);
+      // Use Admin API to guarantee update works (Bypasses potential RLS issues)
+      const response = await fetch("/api/user/update", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({
+            userId: user.id,
+            dj_name: formData.dj_name.trim(),
+            full_name: formData.full_name.trim() || null,
+            phone: formData.phone.trim() || null,
+            bio: formData.bio.trim() || null,
+            profile_image_url: formData.profile_image_url.trim() || null,
+         })
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+         const data = await response.json();
+         throw new Error(data.error || "Update failed");
+      }
+
       await refreshProfile();
       toast.success("Profile updated!");
     } catch (error: any) {
@@ -95,7 +93,7 @@ export default function SettingsPage() {
         const response = await fetch("/api/stripe/connect", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: user?.id, email: user?.email }) // Send email for fallback creation
+            body: JSON.stringify({ userId: user?.id, email: user?.email })
         });
         const data = await response.json();
         if (data.url) {
@@ -112,7 +110,6 @@ export default function SettingsPage() {
   if (loading) return <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center"><Loader2 className="w-8 h-8 text-purple-500 animate-spin" /></div>;
   if (!user) return null;
 
-  // Profile missing - Show recovery or wait for sync
   if (!profile) {
      return (
         <div className="min-h-screen bg-[#0A0A0B] p-8 flex items-center justify-center">

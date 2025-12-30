@@ -54,9 +54,10 @@ export async function POST(req: NextRequest) {
       try {
           const account = await stripeServer.accounts.create({
             type: "express",
-            country: "US",
+            country: "US", // Default
             email: profile.email || undefined,
             capabilities: {
+              card_payments: { requested: true }, // REQUIRED for transfers to work
               transfers: { requested: true },
             },
             business_profile: {
