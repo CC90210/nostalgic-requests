@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { RequestFlow } from "@/components/portal/request-flow";
 import { notFound } from "next/navigation";
+import { DEFAULT_PRICING } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,6 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
 
   console.log("[Portal] Init for slug:", slug);
 
-  // Validate Env Vars
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return (
           <div className="h-screen flex items-center justify-center bg-black text-white p-8 border-4 border-red-500">
@@ -29,60 +29,38 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
     { auth: { persistSession: false } }
   );
 
-  console.log("[Portal] Client created. Fetching...");
-
   try {
-    // 5 Second Timeout Race
-    const fetchPromise = supabase
-      .from("events")
-      .select("*") // Explicitly select all
-      .eq("unique_slug", slug)
-      .single();
-
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Database Request Timed Out (5s)")), 5000)
-    );
-
+    const fetchPromise = supabase.from("events").select("*").eq("unique_slug", slug).single();
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database Request Timed Out")), 5000));
     const result = await Promise.race([fetchPromise, timeoutPromise]) as any;
     const { data: event, error } = result;
 
-    if (error) {
-      console.error("[Portal] DB Error:", error);
-      return (
-        <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-8">
-            <h1 className="text-3xl text-red-500 font-bold mb-4">Database Error</h1>
-            <p className="mb-4">{error.message}</p>
-            <pre className="text-xs bg-gray-900 p-2">{JSON.stringify(error, null, 2)}</pre>
-        </div>
-      );
+    if (error || !event) {
+       console.error("[Portal] Error or Not Found:", error);
+       return notFound();
     }
 
-    if (!event) {
-      console.error("[Portal] Not Found");
-      return (
-        <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-8">
-            <h1 className="text-3xl text-yellow-500 font-bold mb-4">Event Not Found</h1>
-            <p>Slug: {slug}</p>
-        </div>
-      );
-    }
-
-    console.log("[Portal] Event found:", event.name);
+    // Dynamic Pricing Config with Defaults
+    const pricingConfig = {
+        price_single: Number(event.price_single) || DEFAULT_PRICING.price_single,
+        price_double: Number(event.price_double) || DEFAULT_PRICING.price_double,
+        price_party: Number(event.price_party) || DEFAULT_PRICING.price_party,
+        price_priority: Number(event.price_priority) || DEFAULT_PRICING.price_priority,
+        price_shoutout: Number(event.price_shoutout) || DEFAULT_PRICING.price_shoutout,
+        price_guaranteed: Number(event.price_guaranteed) || DEFAULT_PRICING.price_guaranteed,
+    };
 
     return (
         <div className="min-h-screen bg-[#0A0A0B] text-white">
-            {/* Header */}
             <div className="p-6 text-center border-b border-white/10">
                 <h1 className="text-2xl font-bold">{event.name}</h1>
                 <p className="text-gray-400">{event.venue_name}</p>
             </div>
-
-            {/* Client Component */}
             <div className="p-4">
                  <RequestFlow 
                     eventId={event.id}
                     eventSlug={event.unique_slug}
-                    basePrice={event.base_price}
+                    pricingConfig={pricingConfig}
                  />
             </div>
         </div>
@@ -91,10 +69,9 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
   } catch (err: any) {
       console.error("[Portal] Exception:", err);
       return (
-          <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-8 border-4 border-purple-500">
-              <h1 className="text-3xl text-purple-500 font-bold mb-4">System Exception</h1>
-              <p className="mb-4 text-xl">{err.message || "Unknown Error"}</p>
-              <p className="text-gray-500">Time: {new Date().toISOString()}</p>
+          <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-8">
+              <h1 className="text-xl font-bold mb-4">Something went wrong</h1>
+              <p>{err.message}</p>
           </div>
       );
   }

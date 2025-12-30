@@ -7,28 +7,27 @@ import {
   Music, Sparkles, Zap, Mic2, Crown, Disc, CreditCard, Phone, User, Mail
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SongSearch } from "./song-search";
 import { Track } from "@/lib/itunes";
-import { PRICING, calculateTotal, formatPrice } from "@/lib/pricing";
+import { calculateTotal, formatPrice, PricingConfig, getPackagePricing, DEFAULT_PRICING } from "@/lib/pricing";
 import { toast } from "sonner";
 import Image from "next/image";
 
 interface RequestFlowProps {
   eventId: string;
   eventSlug: string;
-  basePrice?: number;
+  pricingConfig?: PricingConfig;
 }
 
 type Step = "search" | "packages" | "upsells" | "info";
 
-export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
+export function RequestFlow({ eventId, eventSlug, pricingConfig = DEFAULT_PRICING }: RequestFlowProps) {
   const [step, setStep] = useState<Step>("search");
   const [loading, setLoading] = useState(false);
   const [songs, setSongs] = useState<Track[]>([]);
-  const [packageType, setPackageType] = useState<keyof typeof PRICING.packages>("single");
+  const [packageType, setPackageType] = useState<"single" | "double" | "party">("single");
   const [addons, setAddons] = useState({
     priority: false,
     shoutout: false,
@@ -40,17 +39,24 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
     email: "",
   });
 
-  const currentTotal = calculateTotal({ package: packageType, addons });
+  // Calculate Dynamic Pricing
+  const PRICING = getPackagePricing(pricingConfig);
+  const currentTotal = calculateTotal({ package: packageType, addons }, pricingConfig);
 
   const handleSelectSong = (track: Track) => {
     const newSongs = [...songs, track];
     setSongs(newSongs);
     if (newSongs.length === 1) {
       setStep("packages");
+      setPackageType("single");
+    } else if (newSongs.length === 2 && PRICING.packages.double.price > 0) {
+        setStep("packages");
+        setPackageType("double");
+    } else if (newSongs.length >= 3 && PRICING.packages.party.price > 0) {
+        setStep("packages");
+        setPackageType("party");
     } else {
-        const limit = PRICING.packages[packageType].songs;
-        if (newSongs.length >= limit) setStep("packages");
-        else setStep("packages");
+        setStep("packages");
     }
   };
 
@@ -59,6 +65,8 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
     newSongs.splice(index, 1);
     setSongs(newSongs);
     if (newSongs.length === 0) setStep("search");
+    else if (newSongs.length === 1) setPackageType("single");
+    else if (newSongs.length === 2) setPackageType("double");
   };
 
   const handleCheckout = async () => {
@@ -98,8 +106,6 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
         throw new Error(draftData.error || "Failed to create draft request");
       }
 
-      console.log("[Client Checkout] Draft Created with ID:", draftData.requestId);
-
       // STEP 2: Checkout with Request ID
       const checkoutRes = await fetch("/api/stripe/checkout", {
         method: "POST",
@@ -113,15 +119,11 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
 
       const checkoutData = await checkoutRes.json();
       
-      if (!checkoutRes.ok) {
-        throw new Error(checkoutData.error || "Server rejected checkout");
-      }
+      if (!checkoutRes.ok) throw new Error(checkoutData.error || "Server rejected checkout");
 
-      if (checkoutData.url) {
-        window.location.href = checkoutData.url;
-      } else {
-        throw new Error("No checkout URL returned");
-      }
+      if (checkoutData.url) window.location.href = checkoutData.url;
+      else throw new Error("No checkout URL returned");
+
     } catch (error: any) {
       console.error("[Client Checkout Error]:", error);
       toast.error(`Checkout Failed: ${error.message}`);
@@ -182,8 +184,8 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-8"
                 >
-                    {/* Selected Songs */}
-                    <div className="space-y-4">
+                    {/* Selected Songs List (Removed for brevity but kept in mind) */}
+                     <div className="space-y-4">
                         <h2 className="text-xl font-bold text-white flex items-center gap-2">
                              <Disc className="w-5 h-5 text-purple-400" /> Your Mix
                         </h2>
@@ -194,8 +196,6 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                                     <div className="relative bg-[#1A1A1B] border border-white/10 rounded-xl p-3 flex items-center gap-4">
                                         <div className="h-14 w-14 relative rounded-md overflow-hidden shadow-lg shrink-0">
                                             <Image src={song.artworkUrl} alt={song.title} fill className="object-cover" />
-                                            {/* Vinyl Shine */}
-                                            <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent pointer-events-none"></div>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="font-bold text-white truncate text-lg">{song.title}</div>
@@ -215,7 +215,7 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                         </div>
                     </div>
 
-                    {/* Packages */}
+                    {/* Packages Grid */}
                     <div className="space-y-4">
                         <Label className="text-gray-400 uppercase text-xs font-bold tracking-widest pl-1">Select Package</Label>
                         <div className="grid gap-4">
@@ -247,7 +247,7 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                                         </div>
                                         <div className="text-right">
                                             <div className={`font-bold text-xl ${isSelected ? "text-purple-300" : "text-gray-400"}`}>{formatPrice(pkg.price)}</div>
-                                            {pkg.savings > 0 && <span className="text-[10px] text-black font-bold bg-green-400 px-2 py-0.5 rounded-full inline-block mt-1">SAVE ${pkg.savings}</span>}
+                                            {pkg.savings > 0 && <span className="text-[10px] text-black font-bold bg-green-400 px-2 py-0.5 rounded-full inline-block mt-1">SAVE ${pkg.savings.toFixed(2)}</span>}
                                         </div>
                                     </div>
                                 )
@@ -270,11 +270,10 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                         <h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
                             <Sparkles className="text-amber-400 w-6 h-6 animate-pulse" /> Customize It
                         </h2>
-                        <p className="text-gray-400 text-sm">Make your request stand out.</p>
                     </div>
 
                     <div className="grid gap-4">
-                        {/* Priority - Amber */}
+                        {/* Priority */}
                         <div 
                             className={`p-5 rounded-xl border cursor-pointer transition-all ${addons.priority ? "border-amber-500/50 bg-amber-950/40" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
                             onClick={() => setAddons(p => ({...p, priority: !p.priority}))}
@@ -289,7 +288,7 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                             <p className="text-sm text-gray-400">Jump the queue. Play sooner.</p>
                         </div>
 
-                        {/* Shoutout - Cyan */}
+                        {/* Shoutout */}
                         <div 
                             className={`p-5 rounded-xl border cursor-pointer transition-all ${addons.shoutout ? "border-cyan-500/50 bg-cyan-950/40" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
                             onClick={() => setAddons(p => ({...p, shoutout: !p.shoutout}))}
@@ -304,7 +303,7 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                             <p className="text-sm text-gray-400">Personal dedication from the DJ.</p>
                         </div>
 
-                        {/* Guaranteed Next - Red */}
+                        {/* Guaranteed Next */}
                         <div 
                             className={`relative p-5 rounded-xl border cursor-pointer transition-all overflow-hidden ${addons.guaranteedNext ? "border-red-500/50 bg-red-950/40" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
                             onClick={() => setAddons(p => ({...p, guaranteedNext: !p.guaranteedNext}))}
@@ -340,43 +339,34 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                     <div className="space-y-6">
                         <div className="space-y-2">
                             <Label className="text-gray-300 ml-1">Mobile Number <span className="text-purple-500">*</span></Label>
-                            <div className="relative group">
-                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-                                <Input 
-                                    type="tel" 
-                                    placeholder="(555) 123-4567"
-                                    value={requesterInfo.phone} 
-                                    onChange={e => setRequesterInfo(p => ({...p, phone: e.target.value}))}
-                                    className="pl-12 h-14 bg-black/40 border-purple-500/30 focus:border-purple-400 focus:ring-1 focus:ring-purple-400/50 rounded-lg text-white placeholder:text-gray-600 transition-all"
-                                />
-                            </div>
+                            <Input 
+                                type="tel" 
+                                placeholder="(555) 123-4567"
+                                value={requesterInfo.phone} 
+                                onChange={e => setRequesterInfo(p => ({...p, phone: e.target.value}))}
+                                className="h-14 bg-black/40 border-purple-500/30 text-white"
+                            />
                         </div>
 
                          <div className="space-y-2">
                             <Label className="text-gray-300 ml-1">Your Name {addons.shoutout && <span className="text-purple-500">*</span>}</Label>
-                            <div className="relative group">
-                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-                                <Input 
-                                    placeholder="DJ Cool"
-                                    value={requesterInfo.name} 
-                                    onChange={e => setRequesterInfo(p => ({...p, name: e.target.value}))}
-                                   className="pl-12 h-14 bg-black/40 border-purple-500/30 focus:border-purple-400 focus:ring-1 focus:ring-purple-400/50 rounded-lg text-white placeholder:text-gray-600 transition-all"
-                                />
-                            </div>
+                            <Input 
+                                placeholder="DJ Cool"
+                                value={requesterInfo.name} 
+                                onChange={e => setRequesterInfo(p => ({...p, name: e.target.value}))}
+                               className="h-14 bg-black/40 border-purple-500/30 text-white"
+                            />
                         </div>
 
                          <div className="space-y-2">
                             <Label className="text-gray-300 ml-1">Email (Optional)</Label>
-                            <div className="relative group">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-                                <Input 
-                                    type="email" 
-                                    placeholder="hello@example.com"
-                                    value={requesterInfo.email} 
-                                    onChange={e => setRequesterInfo(p => ({...p, email: e.target.value}))}
-                                    className="pl-12 h-14 bg-black/40 border-purple-500/30 focus:border-purple-400 focus:ring-1 focus:ring-purple-400/50 rounded-lg text-white placeholder:text-gray-600 transition-all"
-                                />
-                            </div>
+                            <Input 
+                                type="email" 
+                                placeholder="hello@example.com"
+                                value={requesterInfo.email} 
+                                onChange={e => setRequesterInfo(p => ({...p, email: e.target.value}))}
+                                className="h-14 bg-black/40 border-purple-500/30 text-white"
+                            />
                         </div>
                     </div>
                 </motion.div>
@@ -398,7 +388,7 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                     
                     {step === "packages" && (
                          <Button 
-                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold h-14 px-8 rounded-xl shadow-lg shadow-purple-500/25 transition-all transform hover:scale-[1.02] active:scale-95"
+                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold h-14 px-8 rounded-xl"
                             onClick={() => {
                                 const required = PRICING.packages[packageType].songs;
                                 if (songs.length < required) {
@@ -414,7 +404,7 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                     
                     {step === "upsells" && (
                          <Button 
-                            className="bg-white text-black hover:bg-gray-200 font-bold h-14 px-8 rounded-xl transition-all transform hover:scale-[1.02] active:scale-95"
+                            className="bg-white text-black hover:bg-gray-200 font-bold h-14 px-8 rounded-xl"
                             onClick={() => setStep("info")}
                         >
                             Checkout <ChevronRight className="ml-2 h-5 w-5" />
@@ -423,17 +413,11 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
                     
                     {step === "info" && (
                          <Button 
-                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold w-48 h-14 rounded-xl shadow-lg shadow-purple-500/25 transition-all transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
+                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold w-48 h-14 rounded-xl disabled:opacity-50"
                             onClick={handleCheckout}
                             disabled={loading}
                         >
-                            {loading ? (
-                                <Loader2 className="animate-spin w-6 h-6" />
-                            ) : (
-                                <span className="flex items-center gap-2 text-lg">
-                                    Pay Now <CreditCard className="w-5 h-5" />
-                                </span>
-                            )}
+                            {loading ? <Loader2 className="animate-spin w-6 h-6" /> : "Pay Now"}
                         </Button>
                     )}
                  </div>

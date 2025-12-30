@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { calculateTotal } from "@/lib/pricing";
+import { calculateTotal, DEFAULT_PRICING, PricingConfig } from "@/lib/pricing";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,11 +21,28 @@ export async function POST(req: NextRequest) {
         requesterEmail 
     } = body;
 
+    // 1. Fetch Event Pricing
+    const { data: eventData, error: eventError } = await supabase
+        .from("events")
+        .select("price_single, price_double, price_party, price_priority, price_shoutout, price_guaranteed")
+        .eq("id", eventId)
+        .single();
+    
+    // Fallback to default if columns missing or null
+    const pricingConfig: PricingConfig = {
+        price_single: eventData?.price_single ?? DEFAULT_PRICING.price_single,
+        price_double: eventData?.price_double ?? DEFAULT_PRICING.price_double,
+        price_party: eventData?.price_party ?? DEFAULT_PRICING.price_party,
+        price_priority: eventData?.price_priority ?? DEFAULT_PRICING.price_priority,
+        price_shoutout: eventData?.price_shoutout ?? DEFAULT_PRICING.price_shoutout,
+        price_guaranteed: eventData?.price_guaranteed ?? DEFAULT_PRICING.price_guaranteed,
+    };
+
     // Server-side Price Calculation
-    const amountPaid = calculateTotal({ package: packageType, addons });
+    const amountPaid = calculateTotal({ package: packageType, addons }, pricingConfig);
     const primarySong = songs[0] || {};
 
-    // 1. DRAFT INSERT (Pending Order)
+    // 2. Insert Draft
     const { data, error } = await supabase.from("requests").insert({
         event_id: eventId,
         song_title: primarySong.title || "Unknown",
@@ -35,23 +52,19 @@ export async function POST(req: NextRequest) {
         song_itunes_id: primarySong.id ? String(primarySong.id) : null,
         requester_name: requesterName || "Anonymous",
         requester_phone: requesterPhone || null,
-        requester_email: requesterEmail || null, // Confirmed column exists
+        requester_email: requesterEmail || null,
         amount_paid: amountPaid,
         song_count: songs.length,
         has_priority: addons?.priority || false,
         has_shoutout: addons?.shoutout || false,
         has_guaranteed_next: addons?.guaranteedNext || false,
         
-        // NEW SCHEMA FIELDS
         status: "pending", 
         is_paid: false 
     }).select("id").single();
 
     if (error) {
         console.error("? Draft Insert Error:", error);
-        if (error.code === '42703') { // Postgres undefined_column
-             return NextResponse.json({ error: "CRITICAL: Database Schema Mismatch - Run SQL Migrations." }, { status: 500 });
-        }
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

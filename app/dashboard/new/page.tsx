@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,7 +14,8 @@ import {
   PartyPopper,
   Heart,
   Beer,
-  Sparkles
+  Sparkles,
+  DollarSign
 } from "lucide-react";
 
 const EVENT_TYPES = [
@@ -64,6 +65,14 @@ export default function CreateEventPage() {
     end_ampm: "AM",
     event_type: "club",
     custom_message: "",
+    
+    // Dynamic Pricing (Defaults)
+    price_single: 5,
+    price_double: 8,
+    price_party: 12,
+    price_priority: 10,
+    price_shoutout: 5,
+    price_guaranteed: 20
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -127,6 +136,14 @@ export default function CreateEventPage() {
           end_time: endDate.toISOString(),
           event_type: formData.event_type,
           custom_message: formData.custom_message.trim() || null,
+          
+          // Pricing Columns
+          price_single: Number(formData.price_single),
+          price_double: Number(formData.price_double),
+          price_party: Number(formData.price_party),
+          price_priority: Number(formData.price_priority),
+          price_shoutout: Number(formData.price_shoutout),
+          price_guaranteed: Number(formData.price_guaranteed),
         }),
       });
 
@@ -350,27 +367,66 @@ export default function CreateEventPage() {
               />
             </div>
 
-            {/* Pricing Info */}
-            <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-xl p-4 border border-purple-500/30">
-              <h3 className="text-sm font-semibold text-purple-300 mb-3 flex items-center gap-2">
-                <Sparkles className="w-4 h-4" />
-                Request Pricing
-              </h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="text-xl font-bold text-white">$5</div>
-                  <div className="text-gray-400 text-xs">Single Song</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-white">$8</div>
-                  <div className="text-gray-400 text-xs">Double Up</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-white">$12</div>
-                  <div className="text-gray-400 text-xs">Party Pack</div>
-                </div>
-              </div>
+            {/* Dynamic Pricing Configuration */}
+            <div className="bg-[#1A1A1B] border border-purple-500/30 rounded-xl p-5 overflow-hidden">
+               <div className="flex items-center gap-2 mb-4">
+                  <DollarSign className="w-5 h-5 text-green-400" />
+                  <h3 className="font-bold text-white">Event Pricing</h3>
+                  <span className="text-xs bg-green-900/50 text-green-400 px-2 py-0.5 rounded-full">Customize</span>
+               </div>
+               
+               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                 {/* Single */}
+                 <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Single Song</label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input type="number" name="price_single" value={formData.price_single} onChange={handleChange} className="w-full pl-7 pr-3 py-2 bg-black/40 border border-[#333] rounded-lg text-white focus:border-purple-500" />
+                    </div>
+                 </div>
+                 {/* Double */}
+                 <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Double (2)</label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input type="number" name="price_double" value={formData.price_double} onChange={handleChange} className="w-full pl-7 pr-3 py-2 bg-black/40 border border-[#333] rounded-lg text-white focus:border-purple-500" />
+                    </div>
+                 </div>
+                 {/* Party */}
+                 <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Party (3)</label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input type="number" name="price_party" value={formData.price_party} onChange={handleChange} className="w-full pl-7 pr-3 py-2 bg-black/40 border border-[#333] rounded-lg text-white focus:border-purple-500" />
+                    </div>
+                 </div>
+                  {/* Priority */}
+                 <div className="space-y-2">
+                    <label className="text-xs font-bold text-amber-500 uppercase tracking-widest">Fast Track</label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input type="number" name="price_priority" value={formData.price_priority} onChange={handleChange} className="w-full pl-7 pr-3 py-2 bg-black/40 border border-[#333] rounded-lg text-white focus:border-amber-500" />
+                    </div>
+                 </div>
+                  {/* Shoutout */}
+                 <div className="space-y-2">
+                    <label className="text-xs font-bold text-cyan-500 uppercase tracking-widest">Shoutout</label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input type="number" name="price_shoutout" value={formData.price_shoutout} onChange={handleChange} className="w-full pl-7 pr-3 py-2 bg-black/40 border border-[#333] rounded-lg text-white focus:border-cyan-500" />
+                    </div>
+                 </div>
+                  {/* Guaranteed */}
+                 <div className="space-y-2">
+                    <label className="text-xs font-bold text-red-500 uppercase tracking-widest">Guaranteed Next</label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input type="number" name="price_guaranteed" value={formData.price_guaranteed} onChange={handleChange} className="w-full pl-7 pr-3 py-2 bg-black/40 border border-[#333] rounded-lg text-white focus:border-red-500" />
+                    </div>
+                 </div>
+               </div>
             </div>
+
           </div>
 
           <button
@@ -396,4 +452,3 @@ export default function CreateEventPage() {
     </div>
   );
 }
-
