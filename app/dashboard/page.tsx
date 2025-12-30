@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -23,30 +23,32 @@ export default function DashboardPage() {
     recentEvents: [] as any[],
   });
   const [dataLoading, setDataLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!user) return;
+    let mounted = true;
 
+    const fetchDashboardData = async () => {
       try {
         const supabase = getClientSupabase();
         
         // 1. Fetch Events Directly (RLS Enforced)
-        // Replaces insecure /api/events call
         const { data: eventsData, error: eventError } = await supabase
             .from("events")
             .select("*")
             .order("start_time", { ascending: false });
 
+        if (!mounted) return;
+
         if (eventError) {
              console.error("Events fetch error:", eventError);
+             setHasError(true);
              return;
         }
         
         const events = eventsData || [];
         const liveEvent = events.find((e: any) => e.status === "live") || null;
         
-        // Progressive Update: Show Events immediately
         setStats(prev => ({
             ...prev,
             totalEvents: events.length,
@@ -54,7 +56,7 @@ export default function DashboardPage() {
             recentEvents: events.slice(0, 5)
         }));
         
-        // 2. Fetch Revenue (Second Paint)
+        // 2. Fetch Revenue
         const eventIds = events.map((e: any) => e.id);
         if (eventIds.length > 0) {
             const { data: validRequests, error } = await supabase
@@ -62,6 +64,8 @@ export default function DashboardPage() {
               .select("amount_paid")
               .in("event_id", eventIds)
               .eq("is_paid", true);
+
+            if (!mounted) return;
 
             if (!error && validRequests) {
                 const totalRequests = validRequests.length;
@@ -76,15 +80,20 @@ export default function DashboardPage() {
         }
       } catch (error) {
         console.error("Dashboard fetch error:", error);
+        if (mounted) setHasError(true);
       } finally {
-        setDataLoading(false);
+        if (mounted) setDataLoading(false);
       }
     };
 
-    if (!loading && user) {
+    if (user?.id) {
       fetchDashboardData();
+    } else if (!loading && !user) {
+        setDataLoading(false); 
     }
-  }, [user, loading]);
+
+    return () => { mounted = false; };
+  }, [user?.id, loading]);
 
   if (loading) {
     return (
@@ -94,7 +103,7 @@ export default function DashboardPage() {
     );
   }
 
-  const djName = profile?.dj_name || "DJ";
+  const djName = user?.user_metadata?.dj_name || profile?.dj_name || "DJ";
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-6 md:p-8">
@@ -121,9 +130,9 @@ export default function DashboardPage() {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard icon={<DollarSign className="w-6 h-6" />} value={`$${stats.totalRevenue.toFixed(2)}`} label="Total Revenue" color="green" />
-        <StatCard icon={<Calendar className="w-6 h-6" />} value={stats.totalEvents.toString()} label="Total Events" color="purple" />
-        <StatCard icon={<Music className="w-6 h-6" />} value={stats.totalRequests.toString()} label="Total Requests" color="pink" />
+        <StatCard icon={<DollarSign className="w-6 h-6" />} value={hasError ? "-" : `$${stats.totalRevenue.toFixed(2)}`} label="Total Revenue" color="green" />
+        <StatCard icon={<Calendar className="w-6 h-6" />} value={hasError ? "-" : stats.totalEvents.toString()} label="Total Events" color="purple" />
+        <StatCard icon={<Music className="w-6 h-6" />} value={hasError ? "-" : stats.totalRequests.toString()} label="Total Requests" color="pink" />
         <StatCard icon={<Users className="w-6 h-6" />} value={profile?.phone || "-"} label="Your Phone" color="blue" />
       </div>
 
@@ -161,10 +170,14 @@ export default function DashboardPage() {
           <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-8 text-center">
             <Loader2 className="w-8 h-8 text-purple-500 animate-spin mx-auto" />
           </div>
+        ) : hasError ? (
+           <div className="bg-[#1A1A1B] border border-red-500/30 rounded-2xl p-8 text-center">
+            <p className="text-red-400">Failed to load events.</p>
+          </div>
         ) : stats.recentEvents.length === 0 ? (
           <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-8 text-center">
             <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400 mb-4">No events yet</p>
+            <p className="text-gray-400 mb-4">No events yet ({stats.totalEvents})</p>
             <Link href="/dashboard/new" className="text-purple-400 hover:text-purple-300 font-medium">
               Create your first event
             </Link>

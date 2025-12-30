@@ -7,7 +7,6 @@ import { CalendarDays, Plus, Loader2, MapPin } from "lucide-react";
 import LocalTimeDisplay from "@/components/dashboard/LocalTimeDisplay";
 import { createClient } from "@supabase/supabase-js";
 
-// Helper to get client with session automatically handled by browser
 function getClientSupabase() {
     return createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,22 +29,19 @@ export default function EventsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      if (!user) {
-        setEventsLoading(false);
-        return;
-      }
+    let mounted = true;
 
+    const fetchEvents = async () => {
       try {
-        // DIRECT SUPABASE QUERY (RLS ENFORCED)
-        // Instead of insecure /api/events, we query directly. 
-        // RLS ensures we only get events where user_id === auth.uid()
         const supabase = getClientSupabase();
         
+        // DIRECT SUPABASE QUERY (RLS ENFORCED)
         const { data, error: dbError } = await supabase
             .from("events")
             .select("*")
             .order("created_at", { ascending: false });
+
+        if (!mounted) return;
 
         if (dbError) {
           throw dbError;
@@ -54,16 +50,20 @@ export default function EventsPage() {
         setEvents(data || []);
       } catch (err: any) {
         console.error("Events fetch error:", err);
-        setError("Failed to load events: " + err.message);
+        if (mounted) setError("Failed to load events: " + err.message);
       } finally {
-        setEventsLoading(false);
+        if (mounted) setEventsLoading(false);
       }
     };
 
-    if (!loading) {
-      fetchEvents();
+    if (user?.id) {
+        fetchEvents();
+    } else if (!loading && !user) {
+        setEventsLoading(false);
     }
-  }, [user, loading]);
+
+    return () => { mounted = false; };
+  }, [user?.id, loading]);
 
   if (loading) {
     return (
