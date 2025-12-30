@@ -19,46 +19,44 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!user) {
-        setDataLoading(false);
-        return;
-      }
+      if (!user) return;
 
       try {
-        // 1. Fetch Events
+        // 1. Fetch Events (First Paint)
         const response = await fetch("/api/events");
         const data = await response.json();
         
-        if (data.events) {
-          const events = data.events;
-          const liveEvent = events.find((e: any) => e.status === "live") || null;
-          const eventIds = events.map((e: any) => e.id);
-
-          // 2. Fetch Requests Stats safely (is_paid = true)
-          const supabase = getSupabase();
-          let totalRevenue = 0;
-          let totalRequests = 0;
-
-          if (eventIds.length > 0) {
-              const { data: validRequests, error } = await supabase
-                .from("requests")
-                .select("amount_paid")
-                .in("event_id", eventIds)
-                .eq("is_paid", true);
-
-              if (!error && validRequests) {
-                  totalRequests = validRequests.length;
-                  totalRevenue = validRequests.reduce((sum, r) => sum + (r.amount_paid || 0), 0);
-              }
-          }
-          
-          setStats({
-            totalRevenue,
+        const events = data.events || [];
+        const liveEvent = events.find((e: any) => e.status === "live") || null;
+        
+        // Progressive Update: Show Events immediately
+        setStats(prev => ({
+            ...prev,
             totalEvents: events.length,
-            totalRequests,
             liveEvent,
-            recentEvents: events.slice(0, 5),
-          });
+            recentEvents: events.slice(0, 5)
+        }));
+        
+        // 2. Fetch Revenue (Second Paint)
+        const eventIds = events.map((e: any) => e.id);
+        if (eventIds.length > 0) {
+            const supabase = getSupabase();
+            const { data: validRequests, error } = await supabase
+              .from("requests")
+              .select("amount_paid")
+              .in("event_id", eventIds)
+              .eq("is_paid", true);
+
+            if (!error && validRequests) {
+                const totalRequests = validRequests.length;
+                const totalRevenue = validRequests.reduce((sum, r) => sum + (r.amount_paid || 0), 0);
+                
+                setStats(prev => ({
+                    ...prev,
+                    totalRequests,
+                    totalRevenue
+                }));
+            }
         }
       } catch (error) {
         console.error("Dashboard fetch error:", error);
@@ -67,7 +65,7 @@ export default function DashboardPage() {
       }
     };
 
-    if (!loading) {
+    if (!loading && user) {
       fetchDashboardData();
     }
   }, [user, loading]);
@@ -90,7 +88,7 @@ export default function DashboardPage() {
       </div>
 
       {stats.liveEvent && (
-        <div className="mb-8 bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-2xl p-6 border border-purple-500/30">
+        <div className="mb-8 bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-2xl p-6 border border-purple-500/30 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2 mb-2">
             <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
             <span className="text-red-400 text-sm font-semibold uppercase tracking-wide">Live Now</span>
@@ -116,7 +114,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <Link
           href="/dashboard/new"
-          className="flex items-center gap-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-2xl p-6 transition-all shadow-lg shadow-purple-500/20"
+          className="flex items-center gap-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-2xl p-6 transition-all shadow-lg shadow-purple-500/20 transform hover:-translate-y-1"
         >
           <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
             <Plus className="w-6 h-6 text-white" />
@@ -129,7 +127,7 @@ export default function DashboardPage() {
         
         <Link
           href="/dashboard/events"
-          className="flex items-center gap-4 bg-[#1A1A1B] hover:bg-[#252526] border border-[#2D2D2D] rounded-2xl p-6 transition-all"
+          className="flex items-center gap-4 bg-[#1A1A1B] hover:bg-[#252526] border border-[#2D2D2D] rounded-2xl p-6 transition-all transform hover:-translate-y-1"
         >
           <div className="w-12 h-12 bg-[#2D2D2D] rounded-xl flex items-center justify-center">
             <List className="w-6 h-6 text-gray-400" />

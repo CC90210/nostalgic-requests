@@ -24,10 +24,15 @@ interface EventActionsProps {
 
 export default function EventActions({ event, hasPayouts }: EventActionsProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(event.status); // Optimistic State
   const router = useRouter();
 
   const updateStatus = async (newStatus: string) => {
-    setIsLoading(true);
+    // 1. Optimistic Update
+    const oldStatus = currentStatus;
+    setCurrentStatus(newStatus); 
+    
+    // 2. Background Sync
     try {
       const supabase = getClientSupabase();
       
@@ -38,14 +43,13 @@ export default function EventActions({ event, hasPayouts }: EventActionsProps) {
 
       if (error) throw error;
 
-      toast.success(`Event ${newStatus === "live" ? "is now live!" : "has ended"}`);
-      router.refresh();
-      window.location.reload(); 
+      toast.success(`Event is now ${newStatus}!`);
+      router.refresh(); // Update server components in background
+      
     } catch (error: any) {
       console.error("Update error:", error);
       toast.error("Failed to update status");
-    } finally {
-      setIsLoading(false);
+      setCurrentStatus(oldStatus); // Revert on failure
     }
   };
 
@@ -70,14 +74,13 @@ export default function EventActions({ event, hasPayouts }: EventActionsProps) {
     } catch (error: any) {
       console.error("Delete error:", error);
       toast.error("Failed to delete event");
-    } finally {
       setIsLoading(false);
     }
   };
 
   return (
     <div className="flex gap-2">
-      {event.status === "draft" && (
+      {currentStatus === "draft" && (
         !hasPayouts ? (
             <Link 
                 href="/dashboard/settings"
@@ -98,15 +101,21 @@ export default function EventActions({ event, hasPayouts }: EventActionsProps) {
         )
       )}
       
-      {event.status === "live" && (
+      {currentStatus === "live" && (
         <button
           onClick={() => updateStatus("ended")}
           disabled={isLoading}
           className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-xl text-white font-medium transition-colors disabled:opacity-50"
-        >
+          >
           {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
           End Event
         </button>
+      )}
+
+      {currentStatus === "ended" && (
+          <span className="px-4 py-2 bg-gray-800 rounded-xl text-gray-400 font-medium cursor-not-allowed">
+              Event Ended
+          </span>
       )}
 
       <button
