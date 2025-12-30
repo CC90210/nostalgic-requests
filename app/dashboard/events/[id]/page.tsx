@@ -1,20 +1,21 @@
-﻿import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { 
   ArrowLeft, 
   Calendar, 
   MapPin, 
-  Clock, 
   QrCode, 
   ExternalLink,
   Play,
   DollarSign,
-  Music
+  Music,
+  Clock
 } from "lucide-react";
 import QRCodeActions from "./QRCodeActions";
 import EventActions from "./EventActions";
 import EventQRCode from "@/components/dashboard/EventQRCode";
+import LocalTimeDisplay from "@/components/dashboard/LocalTimeDisplay";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,6 @@ export default async function EventDetailsPage({ params }: PageProps) {
     playedRequests: requests?.filter(r => r.status === "played").length || 0,
   };
 
-  // Use production URL for portal text link
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
   const portalUrl = `${appUrl}/e/${event.unique_slug}`;
 
@@ -101,7 +101,6 @@ export default async function EventDetailsPage({ params }: PageProps) {
             </h2>
             
             <div className="flex flex-col items-center">
-              {/* Force Client-Side Generation of correct URL */}
               <EventQRCode slug={event.unique_slug} />
               
               <div className="mt-4 w-full">
@@ -133,26 +132,9 @@ export default async function EventDetailsPage({ params }: PageProps) {
             
             <div className="space-y-4">
               <div>
-                <p className="text-gray-400 text-sm">Date & Time</p>
-                <p className="text-white">
-                  {new Date(event.start_time).toLocaleDateString("en-US", {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </p>
-                <p className="text-gray-300">
-                  {new Date(event.start_time).toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                  {" - "}
-                  {new Date(event.end_time).toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </p>
+                <p className="text-gray-400 text-sm mb-1">Date & Time</p>
+                {/* UTC Corrected Time Display */}
+                <LocalTimeDisplay start={event.start_time} end={event.end_time} />
               </div>
 
               <div>

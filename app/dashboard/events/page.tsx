@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import { CalendarDays, Plus, Loader2, MapPin } from "lucide-react";
+import LocalTimeDisplay from "@/components/dashboard/LocalTimeDisplay";
 
 interface Event {
   id: string;
@@ -111,15 +112,7 @@ export default function EventsPage() {
                       {event.venue_name}
                     </p>
                     {event.start_time && (
-                      <p className="text-gray-500 text-sm mt-2">
-                        {new Date(event.start_time).toLocaleDateString("en-US", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </p>
+                      <LocalTimeDisplay start={event.start_time} simple />
                     )}
                   </div>
                   <StatusBadge status={event.status} />
@@ -147,4 +140,3 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
-
