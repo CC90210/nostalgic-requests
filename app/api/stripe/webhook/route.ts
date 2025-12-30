@@ -27,21 +27,23 @@ export async function POST(req: Request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const meta = session.metadata || {};
-    const requestId = meta.request_id;
+    const requestId = meta.request_id; // Using request_id from Draft Flow
 
     if (!requestId) {
-        console.error("? Pre-Order Pattern: Missing request_id in metadata. Old webhook logic required?");
-        return new Response("Missing request_id", { status: 200 }); // Return 200 to clear retry
+        console.error("? Missing request_id in metadata. Fallback needed?");
+        return new Response("Missing request_id", { status: 200 }); 
     }
 
     console.log(`?? Payment Received for Request ID: ${requestId}`);
 
-    // 1. UNLOCK the Request
+    // 1. UNLOCK the Request (is_paid = true)
     const { data: updatedReq, error: updateError } = await supabase
         .from("requests")
         .update({
-            status: "pending", // Unlock!
-            is_paid: true,
+            is_paid: true, 
+             // We keep status as 'pending' so it appears in the "Incoming Queue" 
+             // (Dashboard filters for status='pending')
+            status: "pending", 
             stripe_payment_id: session.payment_intent as string,
             stripe_session_id: session.id
         })
@@ -50,15 +52,18 @@ export async function POST(req: Request) {
         .single();
     
     if (updateError) {
-        console.error("? Failed to unlock request:", updateError);
-        return new Response("Update Failed", { status: 500 });
+        console.error("? Failed to update request:", updateError);
+         if (updateError.code === '42703') { 
+            console.error("CRITICAL: Schema Mismatch - is_paid/status column missing.");
+         }
+        // Force successful response to Stripe so it doesn't retry indefinitely
+        return new Response("Update Failed", { status: 200 }); 
     }
 
-    console.log("? Request Unlocked (Pending)");
+    console.log("? Request Unlocked (Paid)");
 
-    // 2. Upsert Lead (Using data from the DB, reliable!)
-    // We already have the phone/name in `updatedReq`
-    if (updatedReq.requester_phone) {
+    // 2. Upsert Lead
+    if (updatedReq && updatedReq.requester_phone) {
         const { data: existingLead } = await supabase
             .from("leads")
             .select("*")
@@ -72,7 +77,6 @@ export async function POST(req: Request) {
                 total_spent: (Number(existingLead.total_spent) || 0) + amount,
                 request_count: (existingLead.request_count || 0) + 1,
                 last_seen_at: new Date().toISOString(),
-                // Capture email if we didn't have it before, or update it
                 email: existingLead.email || updatedReq.requester_email || session.customer_details?.email
             }).eq("id", existingLead.id);
         } else {
