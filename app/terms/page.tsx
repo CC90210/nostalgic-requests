@@ -96,10 +96,40 @@ export default function TermsPage() {
           <h3>9.3 Music Rights</h3>
           <p>Nostalgic Requests does NOT provide music licensing. Performers are solely responsible for ensuring they have the appropriate licenses and rights to perform any music at their events.</p>
 
-          <h2>10. Disclaimer of Warranties</h2>
-          <p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED.</p>
+          <h2>10. Prohibited Uses</h2>
+          <p>You may NOT use the Service to:</p>
+          <ul>
+             <li>Violate any applicable laws or regulations.</li>
+             <li>Infringe upon intellectual property rights.</li>
+             <li>Transmit malware, viruses, or harmful code.</li>
+             <li>Engage in fraudulent activities.</li>
+             <li>Harass, abuse, or harm others.</li>
+             <li>Impersonate any person or entity.</li>
+          </ul>
 
-          <h2>11. Contact Information</h2>
+          <h2>11. Disclaimer of Warranties</h2>
+          <p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.</p>
+
+          <h2>12. Limitation of Liability</h2>
+          <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, NOSTALGIC REQUESTS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUE.</p>
+          <p>IN NO EVENT SHALL OUR TOTAL LIABILITY EXCEED THE GREATER OF: (A) THE AMOUNT YOU PAID US IN THE TWELVE (12) MONTHS PRIOR TO THE CLAIM, OR (B) ONE HUNDRED DOLLARS ($100).</p>
+
+          <h2>13. Indemnification</h2>
+          <p>You agree to indemnify, defend, and hold harmless Nostalgic Requests from any claims, damages, losses, liabilities, and expenses arising from your use of the Service or violation of these Terms.</p>
+
+          <h2>14. Termination</h2>
+          <p>We may suspend or terminate your access to the Service immediately, without prior notice, for any reason, including if you breach these Terms.</p>
+
+          <h2>15. Dispute Resolution</h2>
+          <p>Any dispute arising from these Terms shall be resolved through binding arbitration in Toronto, Ontario, Canada, except where prohibited by law. You agree to individual arbitration and waive any class action rights.</p>
+
+          <h2>16. Changes to Terms</h2>
+          <p>We reserve the right to modify these Terms at any time. Your continued use of the Service after changes constitutes acceptance of the modified Terms.</p>
+
+          <h2>17. Severability</h2>
+          <p>If any provision of these Terms is found to be unenforceable, the remaining provisions will continue in full force and effect.</p>
+
+          <h2>18. Contact Information</h2>
           <p>For questions about these Terms, contact us at:</p>
           <ul>
              <li><strong>Email:</strong> support@nostalgicrequests.com</li>

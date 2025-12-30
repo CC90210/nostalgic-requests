@@ -30,22 +30,22 @@ export default function Pricing() {
                 <div className="space-y-4">
                     <div className="flex justify-between items-center p-4 rounded-xl bg-white/5 border border-white/5">
                         <span className="font-bold text-white">Single Request</span>
-                        <span className="text-purple-400 font-bold">.00</span>
+                        <span className="text-purple-400 font-bold">$5.00</span>
                     </div>
                     <div className="flex justify-between items-center p-4 rounded-xl bg-white/5 border border-white/5 relative overflow-hidden">
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-purple-500 to-pink-500"></div>
                         <div>
                             <span className="font-bold text-white block">Double Up</span>
-                            <span className="text-xs text-gray-400">2 Songs (Save )</span>
+                            <span className="text-xs text-gray-400">2 Songs (Save $2)</span>
                         </div>
-                        <span className="text-purple-400 font-bold">.00</span>
+                        <span className="text-purple-400 font-bold">$8.00</span>
                     </div>
                     <div className="flex justify-between items-center p-4 rounded-xl bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-500/20">
                         <div>
                             <span className="font-bold text-white block">Party Pack</span>
-                            <span className="text-xs text-gray-400">5 Songs (Save )</span>
+                            <span className="text-xs text-gray-400">5 Songs (Save $3)</span>
                         </div>
-                        <span className="text-pink-400 font-bold">.00</span>
+                        <span className="text-pink-400 font-bold">$12.00</span>
                     </div>
                 </div>
             </div>
@@ -57,19 +57,19 @@ export default function Pricing() {
                      <div className="space-y-4 font-mono text-sm">
                          <div className="flex justify-between text-gray-400">
                              <span>Guest Pays:</span>
-                             <span>.00</span>
+                             <span>$10.00</span>
                          </div>
                          <div className="flex justify-between text-red-400/80">
                              <span>Platform Fee (5%):</span>
-                             <span>-.50</span>
+                             <span>-$0.50</span>
                          </div>
                           <div className="flex justify-between text-red-400/80">
                              <span>Stripe Fee (~2.9% + 30 cents):</span>
-                             <span>-.59</span>
+                             <span>-$0.59</span>
                          </div>
                          <div className="border-t border-white/10 my-4 pt-4 flex justify-between text-green-400 text-lg font-bold">
                              <span>You Receive:</span>
-                             <span>.91</span>
+                             <span>$8.91</span>
                          </div>
                      </div>
                      <p className="text-xs text-gray-500 mt-6">

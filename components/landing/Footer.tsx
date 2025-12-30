@@ -1,11 +1,19 @@
-"use client";
+﻿"use client";
 
 import { Music } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function Footer() {
+  const pathname = usePathname();
+
+  // Helper to ensure scroll to top if needed
+  const handleScroll = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
-    <footer className="bg-[#050506] border-t border-white/5 py-12 text-sm">
+    <footer className="bg-[#050506] border-t border-white/5 py-12 text-sm relative z-50">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
             
             <div className="flex items-center gap-3">
@@ -16,9 +24,9 @@ export default function Footer() {
             </div>
 
             <div className="flex gap-6 text-gray-500">
-                <Link href="#" className="hover:text-white transition-colors">Support</Link>
-                <Link href="#" className="hover:text-white transition-colors">Privacy</Link>
-                <Link href="#" className="hover:text-white transition-colors">Terms</Link>
+                <Link href="/support" className="hover:text-white transition-colors" onClick={handleScroll}>Support</Link>
+                <Link href="/privacy" className="hover:text-white transition-colors" onClick={handleScroll}>Privacy</Link>
+                <Link href="/terms" className="hover:text-white transition-colors" onClick={handleScroll}>Terms</Link>
             </div>
 
             <div className="text-gray-600 text-center md:text-right">
