@@ -12,7 +12,6 @@ export default function SettingsPage() {
   const { user, profile, loading, refreshProfile } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isRecovering, setIsRecovering] = useState(false);
   const [formData, setFormData] = useState({
     dj_name: "",
     full_name: "",
@@ -23,6 +22,7 @@ export default function SettingsPage() {
 
   const searchParams = useSearchParams();
 
+  // Handle successful onboarding redirect
   useEffect(() => {
     if (searchParams.get("onboarding") === "success") {
         toast.success("Payouts connected successfully! You are ready to Go Live.");
@@ -31,6 +31,7 @@ export default function SettingsPage() {
     }
   }, [searchParams, refreshProfile, router]);
 
+  // Sync Form with Profile Data (if available)
   useEffect(() => {
     if (profile) {
       setFormData({
@@ -43,22 +44,15 @@ export default function SettingsPage() {
     }
   }, [profile]);
 
-  const handleRecoverProfile = async () => {
-    setIsRecovering(true);
-    toast.info("Recovering profile...");
-    const recovered = await refreshProfile();
-    if (recovered) toast.success("Profile recovered!");
-    else toast.error("Recovery failed.");
-    setIsRecovering(false);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !profile) return;
+    if (!user) return; // Removed profile dependency
+    
     if (!formData.dj_name.trim()) {
       toast.error("DJ Name is required");
       return;
     }
+
     setIsSaving(true);
     try {
       const response = await fetch("/api/user/update", {
@@ -81,7 +75,7 @@ export default function SettingsPage() {
 
       await refreshProfile();
       router.refresh(); 
-      toast.success("Profile updated!");
+      toast.success("Profile saved successfully!");
     } catch (error: any) {
       toast.error(error.message || "Something went wrong");
     } finally {
@@ -112,23 +106,14 @@ export default function SettingsPage() {
   if (loading) return <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center"><Loader2 className="w-8 h-8 text-purple-500 animate-spin" /></div>;
   if (!user) return null;
 
-  if (!profile) {
-     return (
-        <div className="min-h-screen bg-[#0A0A0B] p-8 flex items-center justify-center">
-            <div className="text-center">
-                <Loader2 className="w-10 h-10 text-yellow-500 mx-auto animate-spin mb-4" />
-                <p className="text-white">Syncing Profile...</p>
-                <Button onClick={handleRecoverProfile} className="mt-4" variant="outline">Force Retry</Button>
-            </div>
-        </div>
-     );
-  }
+  // REMOVED THE BLOCKING "SYNCING PROFILE" SCREEN
+  // Now we simply render the form. If profile is missing, form is empty, user clicks Save -> Profile Created.
 
   // SUPER ADMIN LOGIC
   const isPlatformOwner = user.email?.toLowerCase() === "konamak@icloud.com";
-  const isStripeConnected = profile.stripe_onboarding_complete || isPlatformOwner;
-
-  const isNewDJ = profile.dj_name === "New DJ" || !profile.dj_name;
+  // Safe access to profile properties
+  const isStripeConnected = profile?.stripe_onboarding_complete || isPlatformOwner;
+  const isNewDJ = !profile?.dj_name || profile.dj_name === "New DJ";
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
@@ -148,7 +133,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                     <p className="font-bold text-white">Let's set up your profile!</p>
-                    <p className="text-sm text-gray-300">Your current name is "New DJ". Pick a stage name below to look professional to fans.</p>
+                    <p className="text-sm text-gray-300">Pick a stage name below to look professional to fans.</p>
                 </div>
             </div>
         )}
@@ -224,7 +209,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">{formData.dj_name || "Your DJ Name"}</h2>
-                <p className="text-gray-400 text-sm">{profile.email}</p>
+                <p className="text-gray-400 text-sm">{profile?.email || user.email}</p>
               </div>
             </div>
 
