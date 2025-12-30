@@ -15,7 +15,8 @@ import {
   Music,
   Megaphone,
   Zap,
-  CheckCircle
+  CheckCircle,
+  Info
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,7 +51,7 @@ export default function CreateEventPage() {
   const [endMinute, setEndMinute] = useState("00");
   const [endPeriod, setEndPeriod] = useState("AM");
 
-  // FULL PRICING GRID (Restored)
+  // FULL PRICING GRID
   const [pricing, setPricing] = useState({
       single: "5",
       double: "8",
@@ -78,7 +79,6 @@ export default function CreateEventPage() {
     try {
       const supabase = getClientSupabase();
       
-      // 1. Calculate Timestamps
       const startObj = constructDateTime(date, startHour, startMinute, startPeriod);
       let endObj = constructDateTime(date, endHour, endMinute, endPeriod);
       
@@ -86,11 +86,9 @@ export default function CreateEventPage() {
           endObj.setDate(endObj.getDate() + 1);
       }
 
-      // 2. Generate Slug
       const cleanName = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
       const uniqueSlug = `${cleanName}-${Math.random().toString(36).substring(2, 7)}`;
 
-      // 3. Create Event
       const { data, error } = await supabase
         .from("events")
         .insert({
@@ -102,8 +100,6 @@ export default function CreateEventPage() {
           event_type: eventType,
           unique_slug: uniqueSlug,
           status: "draft",
-          
-          // Mapped Pricing Columns
           price_single: parseFloat(pricing.single) || 5,
           price_double: parseFloat(pricing.double) || 8,
           price_party: parseFloat(pricing.party) || 12,
@@ -132,127 +128,192 @@ export default function CreateEventPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8 flex items-center justify-center">
-      <div className="w-full max-w-3xl">
-        <div className="mb-8">
-          <Link href="/dashboard/events" className="text-gray-400 hover:text-white flex items-center gap-2 mb-4">
-            <ArrowLeft className="w-4 h-4" /> Back
+    <div className="min-h-screen bg-[#0A0A0B] p-6 md:p-12">
+      <div className="max-w-6xl mx-auto">
+        
+        {/* Header - Transparent & Wide */}
+        <div className="mb-12">
+          <Link href="/dashboard/events" className="text-gray-400 hover:text-white flex items-center gap-2 mb-6 transition-colors">
+            <ArrowLeft className="w-5 h-5" /> Back to Dashboard
           </Link>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-8 h-8 text-purple-500" />
-            Create New Event
-          </h1>
-          <p className="text-gray-400 mt-2">Set up your event details and pricing strategy.</p>
+          <div className="flex flex-col gap-2">
+            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight flex items-center gap-3">
+              <Sparkles className="w-10 h-10 text-purple-500" />
+              Create Event
+            </h1>
+            <p className="text-xl text-gray-400 max-w-2xl">
+              Configure your event details, schedule, and pricing strategy for maximum revenue.
+            </p>
+          </div>
         </div>
 
-        <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-6 md:p-8 space-y-8">
+        <div className="space-y-16">
           
-          {/* Section 1: Event Details */}
-          <div className="space-y-4">
-             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                 <Music className="w-5 h-5 text-purple-400" /> Basic Info
-             </h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Event Name *</label>
-                <input
-                    type="text"
-                    placeholder="e.g. Saturday Night Live"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl px-4 py-3 text-white focus:border-purple-500 transition-colors"
-                />
-                </div>
-                <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Venue *</label>
-                <div className="relative">
-                    <MapPin className="absolute left-3 top-3.5 w-5 h-5 text-gray-500" />
+          {/* Section 1: Event Basics */}
+          <section className="space-y-6">
+             <div className="border-b border-white/5 pb-4 mb-6">
+                 <h2 className="text-2xl font-semibold text-white flex items-center gap-3">
+                     <Music className="w-6 h-6 text-purple-400" /> Basic Information
+                 </h2>
+             </div>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl">
+                <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">Event Name</label>
                     <input
-                    type="text"
-                    placeholder="e.g. The Grand Club"
-                    value={venue}
-                    onChange={(e) => setVenue(e.target.value)}
-                    className="w-full bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl pl-10 pr-4 py-3 text-white focus:border-purple-500 transition-colors"
+                        type="text"
+                        placeholder="e.g. Saturday Night Live @ The Grand"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full bg-[#1A1A1B] border border-[#2D2D2D] rounded-xl px-5 py-4 text-white text-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all placeholder-gray-600"
                     />
                 </div>
+                <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">Venue Name</label>
+                    <div className="relative">
+                        <MapPin className="absolute left-4 top-4.5 w-5 h-5 text-gray-500" />
+                        <input
+                            type="text"
+                            placeholder="e.g. The Grand Club"
+                            value={venue}
+                            onChange={(e) => setVenue(e.target.value)}
+                            className="w-full bg-[#1A1A1B] border border-[#2D2D2D] rounded-xl pl-12 pr-5 py-4 text-white text-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all placeholder-gray-600"
+                        />
+                    </div>
                 </div>
              </div>
-          </div>
+          </section>
 
-          <div className="h-px bg-[#2D2D2D]" />
+          {/* Section 2: Schedule */}
+          <section className="space-y-6">
+             <div className="border-b border-white/5 pb-4 mb-6">
+                 <h2 className="text-2xl font-semibold text-white flex items-center gap-3">
+                     <Calendar className="w-6 h-6 text-blue-400" /> Date & Schedule
+                 </h2>
+             </div>
 
-          {/* Section 2: Date & Time */}
-          <div className="space-y-4">
-             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                 <Calendar className="w-5 h-5 text-blue-400" /> Date & Time
-             </h3>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="relative">
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl">
+                <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">Event Date</label>
                     <input 
                         type="date"
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
-                        className="w-full bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl px-4 py-3 text-white focus:border-purple-500 [color-scheme:dark]"
+                        className="w-full bg-[#1A1A1B] border border-[#2D2D2D] rounded-xl px-5 py-4 text-white text-lg focus:border-purple-500 [color-scheme:dark]"
                     />
                 </div>
 
-                <div className="flex bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl overflow-hidden text-white items-center">
-                    <span className="pl-3 text-xs text-gray-500 uppercase font-bold mr-1">Start</span>
-                    <select value={startHour} onChange={e => setStartHour(e.target.value)} className="bg-transparent px-1 py-3 outline-none text-center appearance-none cursor-pointer hover:text-purple-400">
-                        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
-                    </select>
-                    <span className="text-gray-600">:</span>
-                    <select value={startMinute} onChange={e => setStartMinute(e.target.value)} className="bg-transparent px-1 py-3 outline-none text-center appearance-none cursor-pointer hover:text-purple-400">
-                        {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                    <select value={startPeriod} onChange={e => setStartPeriod(e.target.value)} className="bg-purple-900/20 text-purple-400 px-2 py-1 ml-2 mr-2 rounded text-sm font-bold cursor-pointer">
-                        <option value="AM">AM</option>
-                        <option value="PM">PM</option>
-                    </select>
+                <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">Start Time</label>
+                    <div className="flex bg-[#1A1A1B] border border-[#2D2D2D] rounded-xl overflow-hidden text-white h-[60px]">
+                        <select value={startHour} onChange={e => setStartHour(e.target.value)} className="flex-1 bg-transparent text-center text-lg outline-none cursor-pointer hover:bg-white/5 transition-colors appearance-none">
+                            {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                        <span className="self-center text-gray-600">:</span>
+                        <select value={startMinute} onChange={e => setStartMinute(e.target.value)} className="flex-1 bg-transparent text-center text-lg outline-none cursor-pointer hover:bg-white/5 transition-colors appearance-none">
+                            {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <select value={startPeriod} onChange={e => setStartPeriod(e.target.value)} className="w-20 bg-purple-500/10 text-purple-400 font-bold text-center outline-none cursor-pointer hover:bg-purple-500/20 transition-colors">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div className="flex bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl overflow-hidden text-white items-center">
-                    <span className="pl-3 text-xs text-gray-500 uppercase font-bold mr-1">End</span>
-                    <select value={endHour} onChange={e => setEndHour(e.target.value)} className="bg-transparent px-1 py-3 outline-none text-center appearance-none cursor-pointer hover:text-purple-400">
-                        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
-                    </select>
-                    <span className="text-gray-600">:</span>
-                    <select value={endMinute} onChange={e => setEndMinute(e.target.value)} className="bg-transparent px-1 py-3 outline-none text-center appearance-none cursor-pointer hover:text-purple-400">
-                        {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                    <select value={endPeriod} onChange={e => setEndPeriod(e.target.value)} className="bg-purple-900/20 text-purple-400 px-2 py-1 ml-2 mr-2 rounded text-sm font-bold cursor-pointer">
-                        <option value="AM">AM</option>
-                        <option value="PM">PM</option>
-                    </select>
+                <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">End Time</label>
+                    <div className="flex bg-[#1A1A1B] border border-[#2D2D2D] rounded-xl overflow-hidden text-white h-[60px]">
+                        <select value={endHour} onChange={e => setEndHour(e.target.value)} className="flex-1 bg-transparent text-center text-lg outline-none cursor-pointer hover:bg-white/5 transition-colors appearance-none">
+                            {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                        <span className="self-center text-gray-600">:</span>
+                        <select value={endMinute} onChange={e => setEndMinute(e.target.value)} className="flex-1 bg-transparent text-center text-lg outline-none cursor-pointer hover:bg-white/5 transition-colors appearance-none">
+                            {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <select value={endPeriod} onChange={e => setEndPeriod(e.target.value)} className="w-20 bg-purple-500/10 text-purple-400 font-bold text-center outline-none cursor-pointer hover:bg-purple-500/20 transition-colors">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
                 </div>
              </div>
-          </div>
-
-          <div className="h-px bg-[#2D2D2D]" />
-
-          {/* Section 3: Pricing Configuration (Restored) */}
-          <div className="space-y-4">
-             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                 <DollarSign className="w-5 h-5 text-green-400" /> Pricing Strategy
-             </h3>
-             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <PriceInput label="Single Song" icon={<Music className="w-4 h-4 text-gray-500"/>} value={pricing.single} onChange={v => handlePricingChange("single", v)} />
-                <PriceInput label="Double Pack" icon={<Music className="w-4 h-4 text-purple-500"/>} value={pricing.double} onChange={v => handlePricingChange("double", v)} />
-                <PriceInput label="Party Pack (5)" icon={<Sparkles className="w-4 h-4 text-pink-500"/>} value={pricing.party} onChange={v => handlePricingChange("party", v)} />
-                <PriceInput label="Priority Play" icon={<Zap className="w-4 h-4 text-yellow-500"/>} value={pricing.priority} onChange={v => handlePricingChange("priority", v)} />
-                <PriceInput label="Shoutout" icon={<Megaphone className="w-4 h-4 text-blue-500"/>} value={pricing.shoutout} onChange={v => handlePricingChange("shoutout", v)} />
-                <PriceInput label="Guaranteed Next" icon={<CheckCircle className="w-4 h-4 text-green-500"/>} value={pricing.guaranteed} onChange={v => handlePricingChange("guaranteed", v)} />
+             <div className="flex items-center gap-2 text-gray-500 text-sm max-w-5xl">
+                <Info className="w-4 h-4" />
+                <span>End time automatically adjusts to the next day if earlier than start time (e.g., 9 PM - 2 AM).</span>
              </div>
-          </div>
+          </section>
 
-          <button
-            onClick={handleCreate}
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-900/20 mt-8"
-          >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            Launch Event Dashboard
-          </button>
+          {/* Section 3: Pricing Strategy */}
+          <section className="space-y-6">
+             <div className="border-b border-white/5 pb-4 mb-6">
+                 <h2 className="text-2xl font-semibold text-white flex items-center gap-3">
+                     <DollarSign className="w-6 h-6 text-green-400" /> Pricing Strategy
+                 </h2>
+             </div>
+
+             <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl">
+                <PriceInput 
+                    label="Single Request" 
+                    subLabel="Base price per song"
+                    icon={<Music className="w-5 h-5 text-gray-400"/>} 
+                    value={pricing.single} 
+                    onChange={v => handlePricingChange("single", v)} 
+                    color="gray"
+                />
+                <PriceInput 
+                    label="Double Pack" 
+                    subLabel="Discount for 2 songs"
+                    icon={<Music className="w-5 h-5 text-purple-400"/>} 
+                    value={pricing.double} 
+                    onChange={v => handlePricingChange("double", v)} 
+                    color="purple"
+                />
+                <PriceInput 
+                    label="Party Pack (5)" 
+                    subLabel="Bulk discount"
+                    icon={<Sparkles className="w-5 h-5 text-pink-400"/>} 
+                    value={pricing.party} 
+                    onChange={v => handlePricingChange("party", v)} 
+                    color="pink"
+                />
+                <PriceInput 
+                    label="Priority Play" 
+                    subLabel="Jump the queue"
+                    icon={<Zap className="w-5 h-5 text-yellow-400"/>} 
+                    value={pricing.priority} 
+                    onChange={v => handlePricingChange("priority", v)} 
+                    color="yellow"
+                />
+                <PriceInput 
+                    label="Shoutout" 
+                    subLabel="DJ reads message"
+                    icon={<Megaphone className="w-5 h-5 text-blue-400"/>} 
+                    value={pricing.shoutout} 
+                    onChange={v => handlePricingChange("shoutout", v)} 
+                    color="blue"
+                />
+                <PriceInput 
+                    label="Guaranteed Next" 
+                    subLabel="Play literally next"
+                    icon={<CheckCircle className="w-5 h-5 text-green-400"/>} 
+                    value={pricing.guaranteed} 
+                    onChange={v => handlePricingChange("guaranteed", v)} 
+                    color="green"
+                />
+             </div>
+          </section>
+
+          {/* Action Bar */}
+          <div className="pt-8 border-t border-white/10 flex justify-end max-w-5xl">
+              <button
+                onClick={handleCreate}
+                disabled={isLoading}
+                className="w-full md:w-auto px-12 py-5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-lg font-bold rounded-2xl flex items-center justify-center gap-3 transition-all shadow-xl shadow-purple-900/20 transform hover:-translate-y-1 active:translate-y-0"
+            >
+                {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Sparkles className="w-6 h-6" />}
+                Launch Event Dashboard
+            </button>
+          </div>
 
         </div>
       </div>
@@ -260,20 +321,34 @@ export default function CreateEventPage() {
   );
 }
 
-function PriceInput({ label, icon, value, onChange }: { label: string, icon: any, value: string, onChange: (v: string) => void }) {
+function PriceInput({ label, subLabel, icon, value, onChange, color }: any) {
+    const borderColors: any = {
+        gray: "focus-within:border-gray-500",
+        purple: "focus-within:border-purple-500",
+        pink: "focus-within:border-pink-500",
+        yellow: "focus-within:border-yellow-500",
+        blue: "focus-within:border-blue-500",
+        green: "focus-within:border-green-500",
+    };
+
     return (
-        <div className="bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl p-3 flex flex-col gap-2 hover:border-purple-500/50 transition-colors">
-            <div className="flex items-center gap-2 text-xs font-medium text-gray-400">
-                {icon} {label}
+        <div className={`bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-5 flex flex-col gap-4 transition-all duration-300 hover:bg-[#222224] ${borderColors[color]}`}>
+            <div className="flex items-start justify-between">
+                <div>
+                    <div className="flex items-center gap-2 font-semibold text-white mb-1">
+                        {icon} {label}
+                    </div>
+                    <div className="text-xs text-gray-500">{subLabel}</div>
+                </div>
             </div>
-            <div className="relative">
-                <span className="absolute left-2 top-2 text-white font-bold">$</span>
+            <div className="relative mt-auto">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xl">$</span>
                 <input 
                     type="number" 
                     min="0" 
                     value={value} 
                     onChange={e => onChange(e.target.value)} 
-                    className="w-full bg-transparent border-none outline-none pl-5 text-lg font-bold text-white placeholder-gray-600"
+                    className="w-full bg-[#0A0A0B] border border-[#333] rounded-lg pl-8 pr-4 py-3 text-2xl font-bold text-white placeholder-gray-700 outline-none focus:border-white/20 transition-colors"
                     placeholder="0"
                 />
             </div>
