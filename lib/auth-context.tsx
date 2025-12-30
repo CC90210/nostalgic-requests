@@ -20,7 +20,7 @@ interface AuthContextType {
   session: Session | null;
   profile: DJProfile | null;
   loading: boolean;
-  signUp: (email: string, password: string, djName: string, phone: string, fullName?: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, djName: string, phone: string, fullName?: string) => Promise<{ error: any; profile?: DJProfile }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<DJProfile | null>;
@@ -50,54 +50,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<DJProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Self-healing: If profile missing, create it via API
-  const ensureProfile = useCallback(async (authUser: User): Promise<DJProfile | null> => {
+  const fetchProfile = useCallback(async (userId: string): Promise<DJProfile | null> => {
     const supabase = getSupabaseClient();
     
-    console.log("[Auth] Checking profile for:", authUser.email);
-    
-    // Try to fetch existing profile
-    const { data: existingProfile, error: fetchError } = await supabase
+    const { data, error } = await supabase
       .from("dj_profiles")
       .select("*")
-      .eq("user_id", authUser.id)
+      .eq("user_id", userId)
       .maybeSingle();
 
-    if (existingProfile) {
-      console.log("[Auth] Profile found:", existingProfile.dj_name);
-      setProfile(existingProfile);
-      return existingProfile;
+    if (data) {
+      setProfile(data);
+      return data;
     }
-
-    // SELF-HEALING: Profile is missing, create it now!
-    console.warn("[Auth] Profile MISSING! Triggering self-heal...");
     
-    try {
-      const response = await fetch("/api/auth/create-profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: authUser.id,
-          email: authUser.email,
-          dj_name: authUser.user_metadata?.dj_name || authUser.email?.split("@")[0] || "DJ",
-          phone: authUser.user_metadata?.phone || null,
-        }),
-      });
-
-      const result = await response.json();
-      
-      if (response.ok && result.profile) {
-        console.log("[Auth] Self-heal SUCCESS:", result.profile.dj_name);
-        setProfile(result.profile);
-        return result.profile;
-      } else {
-        console.error("[Auth] Self-heal FAILED:", result.error);
-        return null;
-      }
-    } catch (err) {
-      console.error("[Auth] Self-heal exception:", err);
-      return null;
-    }
+    return null;
   }, []);
 
   useEffect(() => {
@@ -106,21 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initializeAuth = async () => {
       try {
-        console.log("[Auth] Initializing...");
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         
         if (!mounted) return;
         
         if (currentSession?.user) {
-          console.log("[Auth] Session found:", currentSession.user.email);
           setSession(currentSession);
           setUser(currentSession.user);
-          await ensureProfile(currentSession.user);
-        } else {
-          console.log("[Auth] No session");
-          setSession(null);
-          setUser(null);
-          setProfile(null);
+          await fetchProfile(currentSession.user.id);
         }
       } catch (error) {
         console.error("[Auth] Init error:", error);
@@ -133,8 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        console.log("[Auth] Event:", event);
-        
         if (!mounted) return;
 
         if (event === "SIGNED_OUT") {
@@ -148,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newSession?.user) {
           setSession(newSession);
           setUser(newSession.user);
-          await ensureProfile(newSession.user);
+          await fetchProfile(newSession.user.id);
         }
         
         setLoading(false);
@@ -159,68 +117,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [ensureProfile]);
+  }, [fetchProfile]);
 
-  const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string) => {
+  // ATOMIC SIGNUP: Profile MUST be created or we rollback
+  const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string): Promise<{ error: any; profile?: DJProfile }> => {
     const supabase = getSupabaseClient();
     
-    console.log("[Auth] Signup for:", email);
+    console.log("[Auth] ATOMIC Signup starting for:", email);
     
-    const { data, error } = await supabase.auth.signUp({
+    // Step 1: Create Auth User
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: { dj_name: djName, phone: phone }
-      }
     });
 
-    if (error) {
-      console.error("[Auth] Signup error:", error);
-      return { error };
+    if (authError) {
+      console.error("[Auth] Auth signup failed:", authError);
+      return { error: authError };
     }
 
-    if (!data.user) {
-      return { error: { message: "Failed to create user" } };
+    if (!authData.user) {
+      return { error: { message: "Failed to create user account" } };
     }
 
-    // Create profile via API immediately
+    console.log("[Auth] Auth user created:", authData.user.id);
+
+    // Step 2: FORCE Profile Creation - MUST succeed
     try {
       const response = await fetch("/api/auth/create-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: data.user.id,
-          email,
+          user_id: authData.user.id,
+          email: email,
           dj_name: djName,
+          phone: phone,
           full_name: fullName || null,
-          phone: phone || null,
         }),
       });
 
       const result = await response.json();
-      
-      if (response.ok && result.profile) {
-        console.log("[Auth] Profile created:", result.profile.dj_name);
-        setProfile(result.profile);
-      } else {
-        console.error("[Auth] Profile API error:", result);
+
+      if (!response.ok || !result.profile) {
+        // ROLLBACK: Profile failed, sign out the user
+        console.error("[Auth] Profile creation FAILED - ROLLING BACK");
+        await supabase.auth.signOut();
+        return { error: { message: result.error || "Failed to save your profile. Please try again." } };
       }
-    } catch (err) {
-      console.error("[Auth] Profile exception:", err);
-    }
 
-    if (data.session) {
-      setSession(data.session);
-      setUser(data.user);
-    }
+      console.log("[Auth] Profile created successfully:", result.profile.dj_name);
 
-    return { error: null };
+      // Step 3: Set state BEFORE returning success
+      setProfile(result.profile);
+      setUser(authData.user);
+      if (authData.session) {
+        setSession(authData.session);
+      }
+
+      return { error: null, profile: result.profile };
+
+    } catch (err: any) {
+      // Network error or exception - rollback
+      console.error("[Auth] Profile API exception - ROLLING BACK:", err);
+      await supabase.auth.signOut();
+      return { error: { message: "Network error while creating profile. Please try again." } };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
     const supabase = getSupabaseClient();
-    
-    console.log("[Auth] Sign in:", email);
     
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
@@ -231,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data.user) {
       setSession(data.session);
       setUser(data.user);
-      await ensureProfile(data.user);
+      await fetchProfile(data.user.id);
     }
     
     return { error: null };
@@ -247,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async (): Promise<DJProfile | null> => {
     if (user) {
-      return await ensureProfile(user);
+      return await fetchProfile(user.id);
     }
     return null;
   };

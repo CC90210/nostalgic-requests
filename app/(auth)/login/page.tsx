@@ -30,12 +30,13 @@ export default function LoginPage() {
     e.preventDefault();
     
     if (isLoading) return;
-    
     setIsLoading(true);
 
     try {
       if (isLogin) {
+        // === SIGN IN ===
         const { error } = await signIn(formData.email, formData.password);
+        
         if (error) {
           if (error.message.includes("Invalid login credentials")) {
             toast.error("Invalid email or password");
@@ -45,11 +46,22 @@ export default function LoginPage() {
           setIsLoading(false);
           return;
         }
+        
         toast.success("Welcome back!");
         router.push("/dashboard");
+        
       } else {
+        // === SIGN UP (ATOMIC - Must save all data) ===
+        
+        // Validation
         if (!formData.djName.trim()) {
           toast.error("Please enter your DJ name");
+          setIsLoading(false);
+          return;
+        }
+        
+        if (!formData.phone.trim()) {
+          toast.error("Please enter your phone number");
           setIsLoading(false);
           return;
         }
@@ -59,14 +71,9 @@ export default function LoginPage() {
           setIsLoading(false);
           return;
         }
-
-        if (!formData.phone.trim()) {
-          toast.error("Please enter your phone number");
-          setIsLoading(false);
-          return;
-        }
         
-        const { error } = await signUp(
+        // ATOMIC signup - waits for profile to be saved
+        const { error, profile } = await signUp(
           formData.email,
           formData.password,
           formData.djName.trim(),
@@ -75,22 +82,30 @@ export default function LoginPage() {
         );
         
         if (error) {
+          // Signup failed OR profile creation failed
           if (error.message.includes("already registered")) {
             toast.error("This email is already registered. Please sign in.");
             setIsLogin(true);
           } else {
-            toast.error(error.message || "Failed to create account");
+            toast.error(error.message || "Account creation failed. Please try again.");
           }
           setIsLoading(false);
           return;
         }
-        
-        toast.success("Account created! Redirecting...");
-        router.push("/dashboard");
+
+        // Only redirect if we have confirmed profile
+        if (profile) {
+          toast.success("Account created successfully!");
+          router.push("/dashboard");
+        } else {
+          toast.error("Account created but profile save failed. Please sign in.");
+          setIsLogin(true);
+          setIsLoading(false);
+        }
       }
     } catch (error: any) {
       console.error("Auth error:", error);
-      toast.error("Something went wrong. Please try again.");
+      toast.error(error.message || "Something went wrong. Please try again.");
       setIsLoading(false);
     }
   };
@@ -126,6 +141,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setIsLogin(true)}
+              disabled={isLoading}
               className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
                 isLogin
                   ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
@@ -137,6 +153,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setIsLogin(false)}
+              disabled={isLoading}
               className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
                 !isLogin
                   ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
@@ -269,6 +286,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setIsLogin(!isLogin)}
+                disabled={isLoading}
                 className="text-purple-400 hover:text-purple-300 font-medium"
               >
                 {isLogin ? "Sign up" : "Sign in"}
