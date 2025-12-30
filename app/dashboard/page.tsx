@@ -1,62 +1,92 @@
-import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
-import Link from 'next/link';
-import { DollarSign, Calendar, Music, Users, Plus, List } from 'lucide-react';
+﻿"use client";
 
-export const dynamic = 'force-dynamic';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
+import { DollarSign, Calendar, Music, Users, Plus, List, Loader2 } from "lucide-react";
 
-export default async function DashboardPage() {
-  let stats = {
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+
+export default function DashboardPage() {
+  const { user, profile, loading } = useAuth();
+  const [stats, setStats] = useState({
     totalRevenue: 0,
     totalEvents: 0,
     totalRequests: 0,
-    totalLeads: 0,
     liveEvent: null as any,
     recentEvents: [] as any[],
-  };
+  });
+  const [dataLoading, setDataLoading] = useState(true);
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = getSupabase();
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!user) {
+        setDataLoading(false);
+        return;
+      }
 
-      const { data: liveEvent } = await supabase
-        .from('events')
-        .select('*')
-        .eq('status', 'live')
-        .maybeSingle();
+      try {
+        const supabase = getSupabaseClient();
 
-      const { data: events } = await supabase
-        .from('events')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
+        // Fetch events - for now fetch all (will filter by dj_id when we add that column)
+        const { data: events } = await supabase
+          .from("events")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(5);
 
-      const { data: requests } = await supabase
-        .from('requests')
-        .select('amount_paid');
+        const { data: liveEvent } = await supabase
+          .from("events")
+          .select("*")
+          .eq("status", "live")
+          .maybeSingle();
 
-      const { count: leadsCount } = await supabase
-        .from('leads')
-        .select('*', { count: 'exact', head: true });
+        const { data: requests } = await supabase
+          .from("requests")
+          .select("amount_paid");
 
-      stats = {
-        totalRevenue: requests?.reduce((sum, r) => sum + Number(r.amount_paid || 0), 0) || 0,
-        totalEvents: events?.length || 0,
-        totalRequests: requests?.length || 0,
-        totalLeads: leadsCount || 0,
-        liveEvent,
-        recentEvents: events || [],
-      };
-    } catch (error) {
-      console.error('Dashboard fetch error:', error);
+        setStats({
+          totalRevenue: requests?.reduce((sum, r) => sum + Number(r.amount_paid || 0), 0) || 0,
+          totalEvents: events?.length || 0,
+          totalRequests: requests?.length || 0,
+          liveEvent,
+          recentEvents: events || [],
+        });
+      } catch (error) {
+        console.error("Dashboard fetch error:", error);
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    if (!loading) {
+      fetchDashboardData();
     }
+  }, [user, loading]);
+
+  if (loading || dataLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+      test</div>
+    );
   }
+
+  // Get personalized greeting
+  const djName = profile?.dj_name || user?.email?.split("@")[0] || "DJ";
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-6 md:p-8">
-      {/* Header */}
+      {/* Personalized Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-400 mt-1">Welcome back! Here''s your overview.</p>
+        <h1 className="text-3xl font-bold text-white">Welcome back, {djName}!</h1>
+        <p className="text-gray-400 mt-1">Here is your dashboard overview.</p>
       </div>
 
       {/* Live Event Banner */}
@@ -79,30 +109,10 @@ export default async function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard
-          icon={<DollarSign className="w-6 h-6" />}
-          value={`$${stats.totalRevenue.toFixed(2)}`}
-          label="Total Revenue"
-          color="green"
-        />
-        <StatCard
-          icon={<Calendar className="w-6 h-6" />}
-          value={stats.totalEvents.toString()}
-          label="Total Events"
-          color="purple"
-        />
-        <StatCard
-          icon={<Music className="w-6 h-6" />}
-          value={stats.totalRequests.toString()}
-          label="Total Requests"
-          color="pink"
-        />
-        <StatCard
-          icon={<Users className="w-6 h-6" />}
-          value={stats.totalLeads.toString()}
-          label="Total Leads"
-          color="blue"
-        />
+        <StatCard icon={<DollarSign className="w-6 h-6" />} value={`$${stats.totalRevenue.toFixed(2)}`} label="Total Revenue" color="green" />
+        <StatCard icon={<Calendar className="w-6 h-6" />} value={stats.totalEvents.toString()} label="Total Events" color="purple" />
+        <StatCard icon={<Music className="w-6 h-6" />} value={stats.totalRequests.toString()} label="Total Requests" color="pink" />
+        <StatCard icon={<Users className="w-6 h-6" />} value={profile?.phone || "Add"} label="Your Phone" color="blue" />
       </div>
 
       {/* Quick Actions */}
@@ -169,29 +179,17 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ 
-  icon, 
-  value, 
-  label, 
-  color 
-}: { 
-  icon: React.ReactNode; 
-  value: string; 
-  label: string; 
-  color: 'green' | 'purple' | 'pink' | 'blue';
-}) {
-  const colors = {
-    green: 'from-green-600/20 to-green-800/20 border-green-500/30 text-green-400',
-    purple: 'from-purple-600/20 to-purple-800/20 border-purple-500/30 text-purple-400',
-    pink: 'from-pink-600/20 to-pink-800/20 border-pink-500/30 text-pink-400',
-    blue: 'from-blue-600/20 to-blue-800/20 border-blue-500/30 text-blue-400',
+function StatCard({ icon, value, label, color }: { icon: React.ReactNode; value: string; label: string; color: string }) {
+  const colors: Record<string, string> = {
+    green: "from-green-600/20 to-green-800/20 border-green-500/30 text-green-400",
+    purple: "from-purple-600/20 to-purple-800/20 border-purple-500/30 text-purple-400",
+    pink: "from-pink-600/20 to-pink-800/20 border-pink-500/30 text-pink-400",
+    blue: "from-blue-600/20 to-blue-800/20 border-blue-500/30 text-blue-400",
   };
 
   return (
     <div className={`bg-gradient-to-br ${colors[color]} border rounded-2xl p-5`}>
-      <div className={`w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center mb-3 ${colors[color].split(' ').pop()}`}>
-        {icon}
-      </div>
+      <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center mb-3">{icon}</div>
       <div className="text-3xl font-bold text-white">{value}</div>
       <div className="text-gray-400 text-sm mt-1">{label}</div>
     </div>
@@ -199,22 +197,17 @@ function StatCard({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const styles = {
-    live: 'bg-green-500/20 text-green-400 border-green-500/30',
-    ended: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
-    draft: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  };
-
-  const labels = {
-    live: 'Live',
-    ended: 'Ended',
-    draft: 'Draft',
+  const styles: Record<string, string> = {
+    live: "bg-green-500/20 text-green-400 border-green-500/30",
+    ended: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+    draft: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   };
 
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[status as keyof typeof styles] || styles.draft}`}>
-      {status === 'live' && <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 animate-pulse" />}
-      {labels[status as keyof typeof labels] || 'Draft'}
+    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.draft}`}>
+      {status === "live" && <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 animate-pulse" />}
+      {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
 }
+
