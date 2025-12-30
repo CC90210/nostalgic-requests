@@ -25,31 +25,77 @@ const EVENT_TYPES = [
   { value: "other", label: "Other", icon: Sparkles },
 ];
 
+const HOURS = [
+  { value: "12", label: "12" },
+  { value: "1", label: "1" },
+  { value: "2", label: "2" },
+  { value: "3", label: "3" },
+  { value: "4", label: "4" },
+  { value: "5", label: "5" },
+  { value: "6", label: "6" },
+  { value: "7", label: "7" },
+  { value: "8", label: "8" },
+  { value: "9", label: "9" },
+  { value: "10", label: "10" },
+  { value: "11", label: "11" },
+];
+
+const MINUTES = ["00", "15", "30", "45"];
+
 export default function CreateEventPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Get today's date as default
+  const today = new Date();
+  const todayStr = today.toISOString().split("T")[0];
   
   const [formData, setFormData] = useState({
     name: "",
     venue_name: "",
     venue_address: "",
-    start_time: "",
-    end_time: "",
+    start_date: todayStr,
+    start_hour: "9",
+    start_minute: "00",
+    start_ampm: "PM",
+    end_date: todayStr,
+    end_hour: "2",
+    end_minute: "00",
+    end_ampm: "AM",
     event_type: "club",
     custom_message: "",
   });
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Auto-adjust end date if start date changes and end is before start
+    if (name === "start_date" && value > formData.end_date) {
+      setFormData((prev) => ({ ...prev, [name]: value, end_date: value }));
+    }
+    
+    // If end time is AM and it's the same date, automatically move to next day
+    if (name === "end_ampm" && value === "AM" && formData.start_date === formData.end_date && formData.start_ampm === "PM") {
+      const nextDay = new Date(formData.start_date);
+      nextDay.setDate(nextDay.getDate() + 1);
+      setFormData((prev) => ({ ...prev, [name]: value, end_date: nextDay.toISOString().split("T")[0] }));
+    }
+  };
+
+  const buildDateTime = (date: string, hour: string, minute: string, ampm: string): Date => {
+    let hourNum = parseInt(hour);
+    if (ampm === "PM" && hourNum !== 12) hourNum += 12;
+    if (ampm === "AM" && hourNum === 12) hourNum = 0;
+    
+    const dt = new Date(date);
+    dt.setHours(hourNum, parseInt(minute), 0, 0);
+    return dt;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation
     if (!formData.name.trim()) {
       toast.error("Please enter an event name");
       return;
@@ -58,20 +104,12 @@ export default function CreateEventPage() {
       toast.error("Please enter a venue name");
       return;
     }
-    if (!formData.start_time) {
-      toast.error("Please select a start time");
-      return;
-    }
-    if (!formData.end_time) {
-      toast.error("Please select an end time");
-      return;
-    }
 
-    const startDate = new Date(formData.start_time);
-    const endDate = new Date(formData.end_time);
+    const startDate = buildDateTime(formData.start_date, formData.start_hour, formData.start_minute, formData.start_ampm);
+    const endDate = buildDateTime(formData.end_date, formData.end_hour, formData.end_minute, formData.end_ampm);
     
     if (endDate <= startDate) {
-      toast.error("End time must be after start time");
+      toast.error("End time must be after start time. For overnight events, select the next day for end date.");
       return;
     }
 
@@ -103,29 +141,20 @@ export default function CreateEventPage() {
       
     } catch (error: any) {
       console.error("Create event error:", error);
-      toast.error(error.message || "Something went wrong. Please try again.");
+      toast.error(error.message || "Something went wrong");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Get minimum datetime (now)
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  const minDateTime = now.toISOString().slice(0, 16);
-
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white">Create New Event</h1>
-          <p className="text-gray-400 mt-2">
-            Set up your gig and generate a QR code for song requests.
-          </p>
+          <p className="text-gray-400 mt-2">Set up your gig and generate a QR code for song requests.</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="bg-[#1A1A1B] rounded-2xl p-6 space-y-6 border border-[#2D2D2D]">
             
@@ -142,7 +171,7 @@ export default function CreateEventPage() {
                   value={formData.name}
                   onChange={handleChange}
                   placeholder="Friday Night Vibes"
-                  className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                  className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:border-purple-500"
                   required
                   disabled={isLoading}
                 />
@@ -158,7 +187,7 @@ export default function CreateEventPage() {
                   value={formData.venue_name}
                   onChange={handleChange}
                   placeholder="The Grand Club"
-                  className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                  className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:border-purple-500"
                   required
                   disabled={isLoading}
                 />
@@ -177,52 +206,110 @@ export default function CreateEventPage() {
                 value={formData.venue_address}
                 onChange={handleChange}
                 placeholder="123 Party Lane, Toronto, ON"
-                className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:border-purple-500"
                 disabled={isLoading}
               />
             </div>
 
-            {/* Start Time & End Time */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  <Clock className="w-4 h-4 inline mr-2" />
-                  Start Time <span className="text-pink-500">*</span>
-                </label>
+            {/* Start Date & Time */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                <Clock className="w-4 h-4 inline mr-2" />
+                Start Date & Time <span className="text-pink-500">*</span>
+              </label>
+              <div className="flex gap-2 flex-wrap">
                 <input
-                  type="datetime-local"
-                  name="start_time"
-                  value={formData.start_time}
+                  type="date"
+                  name="start_date"
+                  value={formData.start_date}
                   onChange={handleChange}
-                  min={minDateTime}
-                  className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all [color-scheme:dark]"
-                  required
+                  className="flex-1 min-w-[140px] px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500 [color-scheme:dark]"
                   disabled={isLoading}
                 />
+                <select
+                  name="start_hour"
+                  value={formData.start_hour}
+                  onChange={handleChange}
+                  className="px-3 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500"
+                  disabled={isLoading}
+                >
+                  {HOURS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+                </select>
+                <span className="text-gray-500 self-center">:</span>
+                <select
+                  name="start_minute"
+                  value={formData.start_minute}
+                  onChange={handleChange}
+                  className="px-3 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500"
+                  disabled={isLoading}
+                >
+                  {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <select
+                  name="start_ampm"
+                  value={formData.start_ampm}
+                  onChange={handleChange}
+                  className="px-3 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500 font-medium"
+                  disabled={isLoading}
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  <Clock className="w-4 h-4 inline mr-2" />
-                  End Time <span className="text-pink-500">*</span>
-                </label>
+            </div>
+
+            {/* End Date & Time */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                <Clock className="w-4 h-4 inline mr-2" />
+                End Date & Time <span className="text-pink-500">*</span>
+                <span className="text-gray-500 text-xs ml-2">(Select next day for overnight events)</span>
+              </label>
+              <div className="flex gap-2 flex-wrap">
                 <input
-                  type="datetime-local"
-                  name="end_time"
-                  value={formData.end_time}
+                  type="date"
+                  name="end_date"
+                  value={formData.end_date}
                   onChange={handleChange}
-                  min={formData.start_time || minDateTime}
-                  className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all [color-scheme:dark]"
-                  required
+                  min={formData.start_date}
+                  className="flex-1 min-w-[140px] px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500 [color-scheme:dark]"
                   disabled={isLoading}
                 />
+                <select
+                  name="end_hour"
+                  value={formData.end_hour}
+                  onChange={handleChange}
+                  className="px-3 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500"
+                  disabled={isLoading}
+                >
+                  {HOURS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+                </select>
+                <span className="text-gray-500 self-center">:</span>
+                <select
+                  name="end_minute"
+                  value={formData.end_minute}
+                  onChange={handleChange}
+                  className="px-3 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500"
+                  disabled={isLoading}
+                >
+                  {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <select
+                  name="end_ampm"
+                  value={formData.end_ampm}
+                  onChange={handleChange}
+                  className="px-3 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500 font-medium"
+                  disabled={isLoading}
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
               </div>
             </div>
 
             {/* Event Type */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-3">
-                Event Type
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-3">Event Type</label>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                 {EVENT_TYPES.map((type) => {
                   const Icon = type.icon;
@@ -234,7 +321,7 @@ export default function CreateEventPage() {
                       disabled={isLoading}
                       className={`flex flex-col items-center gap-2 px-3 py-3 rounded-xl text-sm font-medium transition-all ${
                         formData.event_type === type.value
-                          ? "bg-gradient-to-br from-purple-600 to-pink-600 text-white border-2 border-purple-400 shadow-lg shadow-purple-500/20"
+                          ? "bg-gradient-to-br from-purple-600 to-pink-600 text-white border-2 border-purple-400"
                           : "bg-[#0A0A0B] text-gray-300 border border-[#2D2D2D] hover:border-purple-500/50"
                       }`}
                     >
@@ -256,21 +343,18 @@ export default function CreateEventPage() {
                 name="custom_message"
                 value={formData.custom_message}
                 onChange={handleChange}
-                placeholder="Welcome to the party! Request your favorite songs and support the DJ."
+                placeholder="Welcome to the party! Request your favorite songs."
                 rows={3}
-                className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all resize-none"
+                className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white placeholder-gray-500 focus:border-purple-500 resize-none"
                 disabled={isLoading}
               />
-              <p className="text-gray-500 text-xs mt-2">
-                This message will be displayed on your public request portal.
-              </p>
             </div>
 
             {/* Pricing Info */}
             <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-xl p-4 border border-purple-500/30">
               <h3 className="text-sm font-semibold text-purple-300 mb-3 flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
-                Request Pricing (Fixed)
+                Request Pricing
               </h3>
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
@@ -286,20 +370,16 @@ export default function CreateEventPage() {
                   <div className="text-gray-400 text-xs">Party Pack</div>
                 </div>
               </div>
-              <p className="text-gray-400 text-xs mt-3 text-center">
-                + Add-ons: Priority ($10) • Shoutout ($5) • Guaranteed Next ($20)
-              </p>
             </div>
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={isLoading}
             className={`w-full py-4 rounded-xl font-semibold text-lg transition-all ${
               isLoading
                 ? "bg-gray-600 cursor-not-allowed"
-                : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+                : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-500/25"
             }`}
           >
             {isLoading ? (
