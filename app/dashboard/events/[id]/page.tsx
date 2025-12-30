@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import QRCodeActions from "./QRCodeActions";
 import EventActions from "./EventActions";
+import EventQRCode from "@/components/dashboard/EventQRCode";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ export default async function EventDetailsPage({ params }: PageProps) {
     playedRequests: requests?.filter(r => r.status === "played").length || 0,
   };
 
-  // Use production URL for portal
+  // Use production URL for portal text link
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
   const portalUrl = `${appUrl}/e/${event.unique_slug}`;
 
@@ -79,7 +80,7 @@ export default async function EventDetailsPage({ params }: PageProps) {
             <p className="text-gray-400 flex items-center gap-2">
               <MapPin className="w-4 h-4" />
               {event.venue_name}
-              {event.venue_address && ` • ${event.venue_address}`}
+              {event.venue_address && ` - ${event.venue_address}`}
             </p>
           </div>
           <EventActions event={event} />
@@ -96,22 +97,20 @@ export default async function EventDetailsPage({ params }: PageProps) {
           <div className="bg-[#1A1A1B] border border-[#2D2D2D] rounded-2xl p-6">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <QrCode className="w-5 h-5 text-purple-400" />
-              QR Code
+              QR Code (Live)
             </h2>
             
-            {event.qr_code_url ? (
-              <div className="flex flex-col items-center">
-                <div className="bg-white p-4 rounded-xl mb-4">
-                  <img src={event.qr_code_url} alt="Event QR Code" className="w-48 h-48" />
-                </div>
+            <div className="flex flex-col items-center">
+              {/* Force Client-Side Generation of correct URL */}
+              <EventQRCode slug={event.unique_slug} />
+              
+              <div className="mt-4 w-full">
                 <QRCodeActions qrCodeUrl={event.qr_code_url} portalUrl={portalUrl} />
               </div>
-            ) : (
-              <p className="text-gray-400 text-center py-8">QR code not generated</p>
-            )}
+            </div>
 
             <div className="mt-4 p-3 bg-[#0A0A0B] rounded-xl">
-              <p className="text-gray-400 text-xs mb-1">Public Portal URL</p>
+              <p className="text-gray-400 text-xs mb-1">Public Portal URL (Verified)</p>
               <div className="flex items-center gap-2">
                 <code className="text-purple-400 text-sm flex-1 truncate">{portalUrl}</code>
                 <a
@@ -219,4 +218,3 @@ function StatCard({ icon, value, label, color }: { icon: React.ReactNode; value:
     </div>
   );
 }
-
