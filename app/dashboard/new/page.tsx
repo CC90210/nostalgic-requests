@@ -16,7 +16,8 @@ import {
   Megaphone,
   Zap,
   CheckCircle,
-  Info
+  Info,
+  Navigation
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -39,6 +40,7 @@ export default function CreateEventPage() {
   // Form State
   const [name, setName] = useState("");
   const [venue, setVenue] = useState("");
+  const [address, setAddress] = useState("");
   const [date, setDate] = useState("");
   const [eventType, setEventType] = useState("club");
   
@@ -73,8 +75,8 @@ export default function CreateEventPage() {
         toast.error("You must be logged in.");
         return;
     }
-    if (!name || !venue || !date) {
-        toast.error("Please fill in all required fields");
+    if (!name || !venue || !date || !address) {
+        toast.error("Please fill in all required fields (including Address)");
         return;
     }
 
@@ -98,6 +100,7 @@ export default function CreateEventPage() {
           user_id: user.id, // Explicit ID attachment
           name,
           venue_name: venue,
+          venue_address: address, // NEW FIELD
           start_time: startObj.toISOString(),
           end_time: endObj.toISOString(),
           event_type: eventType,
@@ -130,6 +133,9 @@ export default function CreateEventPage() {
   const handlePricingChange = (key: keyof typeof pricing, val: string) => {
       setPricing(prev => ({ ...prev, [key]: val }));
   };
+
+  // Option Class for Dark Mode visibility
+  const optionClass = "bg-[#1A1A1B] text-white";
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-6 md:p-12">
@@ -185,6 +191,19 @@ export default function CreateEventPage() {
                         />
                     </div>
                 </div>
+                <div className="space-y-3 md:col-span-2">
+                    <label className="text-sm font-medium text-gray-300">Location / Address</label>
+                    <div className="relative">
+                        <Navigation className="absolute left-4 top-4.5 w-5 h-5 text-gray-500" />
+                        <input
+                            type="text"
+                            placeholder="e.g. 123 Main St, New York, NY"
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            className="w-full bg-[#1A1A1B] border border-[#2D2D2D] rounded-xl pl-12 pr-5 py-4 text-white text-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all placeholder-gray-600"
+                        />
+                    </div>
+                </div>
              </div>
           </section>
 
@@ -211,15 +230,15 @@ export default function CreateEventPage() {
                     <label className="text-sm font-medium text-gray-300">Start Time</label>
                     <div className="flex bg-[#1A1A1B] border border-[#2D2D2D] rounded-xl overflow-hidden text-white h-[60px]">
                         <select value={startHour} onChange={e => setStartHour(e.target.value)} className="flex-1 bg-transparent text-center text-lg outline-none cursor-pointer hover:bg-white/5 transition-colors appearance-none">
-                            {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                            {HOURS.map(h => <option key={h} value={h} className={optionClass}>{h}</option>)}
                         </select>
                         <span className="self-center text-gray-600">:</span>
                         <select value={startMinute} onChange={e => setStartMinute(e.target.value)} className="flex-1 bg-transparent text-center text-lg outline-none cursor-pointer hover:bg-white/5 transition-colors appearance-none">
-                            {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
+                            {MINUTES.map(m => <option key={m} value={m} className={optionClass}>{m}</option>)}
                         </select>
                         <select value={startPeriod} onChange={e => setStartPeriod(e.target.value)} className="w-20 bg-purple-500/10 text-purple-400 font-bold text-center outline-none cursor-pointer hover:bg-purple-500/20 transition-colors">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
+                            <option value="AM" className={optionClass}>AM</option>
+                            <option value="PM" className={optionClass}>PM</option>
                         </select>
                     </div>
                 </div>
@@ -228,15 +247,15 @@ export default function CreateEventPage() {
                     <label className="text-sm font-medium text-gray-300">End Time</label>
                     <div className="flex bg-[#1A1A1B] border border-[#2D2D2D] rounded-xl overflow-hidden text-white h-[60px]">
                         <select value={endHour} onChange={e => setEndHour(e.target.value)} className="flex-1 bg-transparent text-center text-lg outline-none cursor-pointer hover:bg-white/5 transition-colors appearance-none">
-                            {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                            {HOURS.map(h => <option key={h} value={h} className={optionClass}>{h}</option>)}
                         </select>
                         <span className="self-center text-gray-600">:</span>
                         <select value={endMinute} onChange={e => setEndMinute(e.target.value)} className="flex-1 bg-transparent text-center text-lg outline-none cursor-pointer hover:bg-white/5 transition-colors appearance-none">
-                            {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
+                            {MINUTES.map(m => <option key={m} value={m} className={optionClass}>{m}</option>)}
                         </select>
                         <select value={endPeriod} onChange={e => setEndPeriod(e.target.value)} className="w-20 bg-purple-500/10 text-purple-400 font-bold text-center outline-none cursor-pointer hover:bg-purple-500/20 transition-colors">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
+                            <option value="AM" className={optionClass}>AM</option>
+                            <option value="PM" className={optionClass}>PM</option>
                         </select>
                     </div>
                 </div>
@@ -261,7 +280,7 @@ export default function CreateEventPage() {
                     subLabel="Base price per song"
                     icon={<Music className="w-5 h-5 text-gray-400"/>} 
                     value={pricing.single} 
-                    onChange={v => handlePricingChange("single", v)} 
+                    onChange={(v: string) => handlePricingChange("single", v)} 
                     color="gray"
                 />
                 <PriceInput 
@@ -269,7 +288,7 @@ export default function CreateEventPage() {
                     subLabel="Discount for 2 songs"
                     icon={<Music className="w-5 h-5 text-purple-400"/>} 
                     value={pricing.double} 
-                    onChange={v => handlePricingChange("double", v)} 
+                    onChange={(v: string) => handlePricingChange("double", v)} 
                     color="purple"
                 />
                 <PriceInput 
@@ -277,7 +296,7 @@ export default function CreateEventPage() {
                     subLabel="Bulk discount"
                     icon={<Sparkles className="w-5 h-5 text-pink-400"/>} 
                     value={pricing.party} 
-                    onChange={v => handlePricingChange("party", v)} 
+                    onChange={(v: string) => handlePricingChange("party", v)} 
                     color="pink"
                 />
                 <PriceInput 
@@ -285,7 +304,7 @@ export default function CreateEventPage() {
                     subLabel="Jump the queue"
                     icon={<Zap className="w-5 h-5 text-yellow-400"/>} 
                     value={pricing.priority} 
-                    onChange={v => handlePricingChange("priority", v)} 
+                    onChange={(v: string) => handlePricingChange("priority", v)} 
                     color="yellow"
                 />
                 <PriceInput 
@@ -293,7 +312,7 @@ export default function CreateEventPage() {
                     subLabel="DJ reads message"
                     icon={<Megaphone className="w-5 h-5 text-blue-400"/>} 
                     value={pricing.shoutout} 
-                    onChange={v => handlePricingChange("shoutout", v)} 
+                    onChange={(v: string) => handlePricingChange("shoutout", v)} 
                     color="blue"
                 />
                 <PriceInput 
@@ -301,7 +320,7 @@ export default function CreateEventPage() {
                     subLabel="Play literally next"
                     icon={<CheckCircle className="w-5 h-5 text-green-400"/>} 
                     value={pricing.guaranteed} 
-                    onChange={v => handlePricingChange("guaranteed", v)} 
+                    onChange={(v: string) => handlePricingChange("guaranteed", v)} 
                     color="green"
                 />
              </div>
