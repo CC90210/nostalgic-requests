@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
-import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
-import { Copy, Play, CheckCircle, Bell, BellOff, Music } from "lucide-react"
+import { Copy, Play, CheckCircle, Bell, BellOff, Music, Mic2, Zap, Crown } from "lucide-react"
 
-// Types need to match DB schema
 interface Request {
     id: string
     song_title: string
@@ -28,7 +26,7 @@ interface LiveDashboardProps {
     eventId: string
     eventName: string
     venueName: string
-    initialRequests: Request[] // Changed from any[] to Request[]
+    initialRequests: Request[]
     initialRevenue: number
     endTime: string
 }
@@ -37,13 +35,10 @@ export function LiveDashboard({ eventId, eventName, venueName, initialRequests, 
     const [requests, setRequests] = useState<Request[]>(initialRequests)
     const [revenue, setRevenue] = useState(initialRevenue)
     const [soundEnabled, setSoundEnabled] = useState(true)
-    const [activeTab, setActiveTab] = useState<'queue' | 'playing' | 'played' | 'all'>('queue')
 
     useEffect(() => {
-        // Since getSupabase() is now lazy and safe, this can run here
         const supabase = getSupabase()
 
-        // Listen for new requests
         const channel = supabase
             .channel('live-dashboard')
             .on(
@@ -60,14 +55,12 @@ export function LiveDashboard({ eventId, eventName, venueName, initialRequests, 
                         setRequests((prev) => [newRequest, ...prev])
                         setRevenue((prev) => prev + (newRequest.amount_paid || 0))
                         
-                        // Play Notification Sound
                         if (soundEnabled) playNotificationSound()
                         
                         toast.success(`New Request: ${newRequest.song_title}`, {
                             description: `${newRequest.requester_name || 'Anonymous'} paid $${newRequest.amount_paid}`
                         })
                     } else if (payload.eventType === 'UPDATE') {
-                        // Handle status updates from other devices/tabs
                          setRequests((prev) => prev.map(req => req.id === payload.new.id ? payload.new as Request : req))
                     }
                 }
@@ -81,32 +74,23 @@ export function LiveDashboard({ eventId, eventName, venueName, initialRequests, 
 
     const playNotificationSound = () => {
         const audio = new Audio('/sounds/notification.mp3');
-        audio.play().catch(e => console.log('Audio play failed', e)); // User interaction usually required first
+        audio.play().catch(e => console.log('Audio play failed', e)); 
     }
 
-    // Sort Logic: Guaranteed Next > Priority > Time (Oldest First for fairness? Or Newest? Usually oldest paid request first)
-    // But typically "Guaranteed Next" bumps to top.
-    const sortRequests = (reqs: Request[]) => {
+    const sortQueue = (reqs: Request[]) => {
         return [...reqs].sort((a, b) => {
-            // Status sort (if mixed in "all" tab)
-            if (a.status === 'playing' && b.status !== 'playing') return -1;
-            if (b.status === 'playing' && a.status !== 'playing') return 1;
-
+            // Priority Sort
             if (a.has_guaranteed_next && !b.has_guaranteed_next) return -1
             if (!a.has_guaranteed_next && b.has_guaranteed_next) return 1
-            
             if (a.has_priority && !b.has_priority) return -1
             if (!a.has_priority && b.has_priority) return 1
-            
-            // Default: Oldest first (FIFO) for fairness in queue
+            // Date Sort (Oldest first)
             return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         })
     }
 
     const handleStatusChange = async (id: string, newStatus: 'playing' | 'played') => {
         const supabase = getSupabase()
-        
-        // Optimistic update
         setRequests(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r))
 
         const { error } = await supabase
@@ -116,7 +100,6 @@ export function LiveDashboard({ eventId, eventName, venueName, initialRequests, 
         
         if (error) {
             toast.error("Failed to update status")
-            // Revert on error would go here
         }
     }
 
@@ -125,21 +108,14 @@ export function LiveDashboard({ eventId, eventName, venueName, initialRequests, 
         toast.success("Copied to clipboard")
     }
 
-    // Filtering logic
-    const queueRequests = sortRequests(requests.filter(r => r.status === 'pending'))
+    // Filter Lists
+    const pendingRequests = sortQueue(requests.filter(r => r.status === 'pending'))
     const playingRequest = requests.find(r => r.status === 'playing')
-    const playedRequests = requests.filter(r => r.status === 'played').sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) // Newest played first
-    
-    // Determine what to show based on tab
-    let displayedRequests = []
-    if (activeTab === 'queue') displayedRequests = queueRequests
-    if (activeTab === 'playing') displayedRequests = playingRequest ? [playingRequest] : []
-    if (activeTab === 'played') displayedRequests = playedRequests
-    if (activeTab === 'all') displayedRequests = sortRequests(requests)
+    const playedRequests = requests.filter(r => r.status === 'played').sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 md:p-6 space-y-6">
-            {/* Sticky Stats Bar */}
+        <div className="min-h-screen bg-black text-white p-4 md:p-6 space-y-8">
+            {/* Header / Stats */}
             <div className="sticky top-4 z-50 bg-gray-900/90 backdrop-blur-md border border-gray-800 p-4 rounded-xl shadow-2xl flex flex-wrap items-center justify-between gap-4">
                  <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]" />
@@ -155,56 +131,81 @@ export function LiveDashboard({ eventId, eventName, venueName, initialRequests, 
                         <p className="font-bold text-green-400 text-lg">${revenue.toFixed(2)}</p>
                     </div>
                     <div className="w-px h-8 bg-gray-800" />
-                    <div className="text-center">
-                        <p className="text-gray-500 text-xs uppercase tracking-wider">Requests</p>
-                        <p className="font-bold text-white text-lg">{requests.length}</p>
-                    </div>
-                     <div className="w-px h-8 bg-gray-800" />
-                     <button onClick={() => setSoundEnabled(!soundEnabled)} className="hover:bg-gray-800 p-2 rounded-full transition-colors">
+                    <button onClick={() => setSoundEnabled(!soundEnabled)} className="hover:bg-gray-800 p-2 rounded-full transition-colors">
                         {soundEnabled ? <Bell className="h-5 w-5 text-yellow-400" /> : <BellOff className="h-5 w-5 text-gray-500" />}
-                     </button>
+                    </button>
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
-                {['queue', 'now playing', 'played', 'all'].map((tab) => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab.split(' ')[0] as any)} // Hacky split for 'now playing' -> 'now' (wait no, key logic needs fix)
-                        className={`px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-                            (tab === 'now playing' && activeTab === 'playing') || (tab === activeTab)
-                                ? 'bg-white text-black shadow-lg scale-105'
-                                : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
-                        }`}
-                        // Fix logic for click handler
-                        // onClick={() => setActiveTab(tab === 'now playing' ? 'playing' : tab as any)}
-                    >
-                       {tab} {(tab === 'queue' && queueRequests.length > 0) && <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{queueRequests.length}</span>}
-                    </button>
-                ))}
-            </div>
-
-            {/* Main Content Area */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                <AnimatePresence mode="popLayout">
-                    {activeTab === 'playing' && !playingRequest && (
-                        <motion.div initial={{opacity: 0}} animate={{opacity: 1}} className="col-span-full h-64 flex flex-col items-center justify-center text-gray-500 border-2 border-dashed border-gray-800 rounded-xl">
-                            <Music className="h-12 w-12 mb-4 opacity-20" />
-                            <p>Nothing playing right now.</p>
-                        </motion.div>
-                    )}
-
-                    {displayedRequests.map((req) => (
-                        <RequestCard 
-                            key={req.id} 
-                            request={req} 
-                            onCopy={() => copyToClipboard(`${req.song_artist} - ${req.song_title}`)}
-                            onPlay={() => handleStatusChange(req.id, 'playing')}
-                            onDone={() => handleStatusChange(req.id, 'played')}
+            {/* LIVE FEED - No Tabs */}
+            <div className="max-w-4xl mx-auto space-y-8">
+                
+                {/* 1. NOW PLAYING */}
+                {playingRequest && (
+                    <div className="space-y-2">
+                         <h2 className="text-sm font-bold text-green-400 uppercase tracking-widest flex items-center gap-2">
+                            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"/> Now Playing
+                        </h2>
+                         <RequestCard 
+                            request={playingRequest} 
+                            onCopy={() => copyToClipboard(`${playingRequest.song_artist} - ${playingRequest.song_title}`)}
+                            onPlay={() => {}} 
+                            onDone={() => handleStatusChange(playingRequest.id, 'played')}
                         />
-                    ))}
-                </AnimatePresence>
+                    </div>
+                )}
+
+                {/* 2. INCOMING QUEUE */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                            Incoming Requests <span className="bg-gray-800 text-gray-400 text-xs px-2 py-1 rounded-full">{pendingRequests.length}</span>
+                        </h2>
+                    </div>
+
+                    <div className="grid gap-3">
+                        <AnimatePresence mode="popLayout">
+                            {pendingRequests.length === 0 && !playingRequest ? (
+                                <div className="text-center py-20 text-gray-500 border border-dashed border-gray-800 rounded-xl">
+                                    <Music className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                                    <p>No requests yet. Share the QR code!</p>
+                                </div>
+                            ) : (
+                                pendingRequests.map(req => (
+                                    <RequestCard 
+                                        key={req.id} 
+                                        request={req} 
+                                        onCopy={() => copyToClipboard(`${req.song_artist} - ${req.song_title}`)}
+                                        onPlay={() => handleStatusChange(req.id, 'playing')}
+                                        onDone={() => handleStatusChange(req.id, 'played')}
+                                    />
+                                ))
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </div>
+
+                {/* 3. RECENTLY PLAYED (Small List) */}
+                {playedRequests.length > 0 && (
+                     <div className="space-y-4 pt-8 border-t border-gray-900">
+                        <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Recently Played</h2>
+                        <div className="opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+                            {playedRequests.slice(0, 5).map(req => (
+                                <div key={req.id} className="flex items-center justify-between py-2 border-b border-gray-900 last:border-0">
+                                    <div className="flex items-center gap-3">
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        <div className="text-sm">
+                                            <span className="text-white font-medium">{req.song_title}</span>
+                                            <span className="text-gray-500 mx-2">-</span>
+                                            <span className="text-gray-400">{req.song_artist}</span>
+                                        </div>
+                                    </div>
+                                    <span className="text-xs text-gray-600 font-mono">${req.amount_paid}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     )
@@ -217,93 +218,78 @@ function RequestCard({ request, onCopy, onPlay, onDone }: { request: Request, on
     return (
         <motion.div
             layout
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className={`relative group rounded-xl overflow-hidden border transition-all ${
-                isPlaying 
-                ? 'bg-gradient-to-b from-green-900/40 to-black border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.2)]'
-                : isPriority 
-                    ? 'bg-gradient-to-b from-yellow-900/20 to-black border-yellow-500/50' 
-                    : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'
-            }`}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className={`
+                relative rounded-xl overflow-hidden border transition-all duration-300
+                ${isPlaying 
+                    ? 'bg-gradient-to-r from-green-900/30 to-black border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.15)] transform scale-[1.02]' 
+                    : isPriority 
+                        ? 'bg-gradient-to-r from-amber-900/20 to-black border-amber-500/50'
+                        : 'bg-white/5 border-white/10 hover:bg-white/10'
+                }
+            `}
         >
-             {/* Status Badge */}
-            {request.has_guaranteed_next && (
-                <div className="absolute top-0 right-0 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg z-10 animate-pulse">
-                    ?? NEXT
+             {request.has_guaranteed_next && (
+                <div className="absolute top-0 right-0 bg-red-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg z-10 shadow-lg">
+                    CROWN REQUEST
                 </div>
             )}
-            
-            <div className="p-4 flex gap-4">
-                 {/* Artwork */}
-                <div className="relative w-20 h-20 shrink-0 rounded-md overflow-hidden bg-gray-800 shadow-lg">
+
+            <div className="flex p-4 gap-4">
+                 {/* Art */}
+                <div className="relative w-16 h-16 shrink-0 rounded bg-gray-800 shadow-inner overflow-hidden">
                     {request.song_artwork_url ? (
-                        <img src={request.song_artwork_url} alt="Art" className="w-full h-full object-cover" />
+                        <img src={request.song_artwork_url} className="w-full h-full object-cover" />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center"><Music className="h-8 w-8 text-gray-600" /></div>
-                    )}
-                    {isPlaying && (
-                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                             <div className="w-3 h-3 bg-green-500 rounded-full animate-ping" />
-                         </div>
+                        <Music className="w-full h-full p-4 text-gray-600" />
                     )}
                 </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0 flex flex-col justify-between">
-                    <div>
-                        <h3 className="font-bold text-white truncate leading-tight">{request.song_title}</h3>
-                        <p className="text-sm text-gray-400 truncate">{request.song_artist}</p>
-                    </div>
-                    
-                    <div className="flex items-center justify-between mt-2">
-                        <div className="flex flex-col">
-                            <span className="text-xs text-gray-500 font-mono">{request.requester_name || 'Guest'}</span>
-                            {request.requester_phone && <span className="text-[10px] text-gray-600">{request.requester_phone}</span>}
+                {/* Content */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h3 className="font-bold text-white text-lg leading-tight truncate pr-4">{request.song_title}</h3>
+                            <p className="text-purple-400 text-sm truncate">{request.song_artist}</p>
                         </div>
-                        <div className="text-right">
-                             <span className={`text-lg font-bold font-mono ${request.amount_paid >= 10 ? 'text-green-400' : 'text-gray-300'}`}>
+                        <div className="text-right shrink-0">
+                            <div className={`text-xl font-bold font-mono tracking-tight ${request.amount_paid >= 10 ? 'text-green-400' : 'text-gray-300'}`}>
                                 ${request.amount_paid}
-                             </span>
+                            </div>
                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-gray-600 rounded-full"/> {request.requester_name || 'Anonymous'}</span>
+                        {request.has_shoutout && <span className="text-cyan-400 flex items-center gap-1 font-bold"><Mic2 className="w-3 h-3"/> Shoutout</span>}
+                        {request.has_priority && <span className="text-amber-400 flex items-center gap-1 font-bold"><Zap className="w-3 h-3"/> Priority</span>}
                     </div>
                 </div>
             </div>
 
-            {/* Actions */}
-            <div className="grid grid-cols-2 gap-px bg-gray-800/50 mt-1 border-t border-gray-800">
-                {request.status !== 'played' && (
-                     <>
-                        <button onClick={onCopy} className="p-3 text-xs font-semibold hover:bg-white/10 flex items-center justify-center gap-2 transition-colors">
-                            <Copy className="h-3 w-3" /> Copy
-                        </button>
-                        {!isPlaying && (
-                             <button onClick={onPlay} className="p-3 text-xs font-semibold hover:bg-green-500/20 text-green-400 flex items-center justify-center gap-2 transition-colors border-l border-gray-800">
-                                <Play className="h-3 w-3" /> Play
-                             </button>
-                        )}
-                        {isPlaying && (
-                             <button onClick={onDone} className="p-3 text-xs font-semibold hover:bg-blue-500/20 text-blue-400 flex items-center justify-center gap-2 transition-colors border-l border-gray-800">
-                                <CheckCircle className="h-3 w-3" /> Done
-                            </button>
-                        )}
-                     </>
-                )}
-                 {request.status === 'played' && (
-                     <div className="col-span-2 p-2 text-center text-xs text-gray-500 flex items-center justify-center gap-1">
-                         <CheckCircle className="h-3 w-3" /> Played
+            {/* Action Bar */}
+            {!isPlaying && (
+                <div className="flex divide-x divide-white/5 border-t border-white/5 bg-black/20">
+                     <button onClick={onCopy} className="flex-1 py-3 hover:bg-white/5 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2">
+                        <Copy className="w-3 h-3" /> Copy
+                     </button>
+                     <button onClick={onPlay} className="flex-1 py-3 hover:bg-green-500/20 text-green-500/70 hover:text-green-400 text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2">
+                        <Play className="w-3 h-3 fill-current" /> Play Now
+                     </button>
+                </div>
+            )}
+             {isPlaying && (
+                <div className="flex divide-x divide-white/5 border-t border-white/5 bg-green-500/10">
+                     <div className="flex-1 py-3 text-green-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 animate-pulse">
+                        Now Playing...
                      </div>
-                )}
-            </div>
-            
-             {/* Addon Indicators */}
-             {(request.has_shoutout || request.has_priority) && (
-                 <div className="px-4 py-1.5 bg-white/5 flex gap-2 text-[10px] text-gray-400 overflow-x-auto">
-                     {request.has_shoutout && <span className="text-purple-400">?? Shoutout Included</span>}
-                     {request.has_priority && <span className="text-yellow-400">? Priority Upgrade</span>}
-                 </div>
-             )}
+                     <button onClick={onDone} className="flex-1 py-3 hover:bg-green-500/20 text-white/70 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2">
+                        <CheckCircle className="w-3 h-3" /> Finish
+                     </button>
+                </div>
+            )}
         </motion.div>
     )
 }
