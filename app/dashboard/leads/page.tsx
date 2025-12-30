@@ -1,25 +1,60 @@
-﻿import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
-import { Users, Phone, Mail, DollarSign, Music } from 'lucide-react';
+﻿"use client";
 
-export const dynamic = 'force-dynamic';
+import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { Users, Phone, Mail, DollarSign, Music, Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
-export default async function LeadsPage() {
-  let leads: any[] = [];
+// Client Side RLS-Safe Client
+function getClientSupabase() {
+    return createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+}
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = getSupabase();
-      const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .order('last_seen_at', { ascending: false });
+export default function LeadsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const [leads, setLeads] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-      if (!error && data) {
-        leads = data;
-      }
-    } catch (error) {
-      console.error('Failed to fetch leads:', error);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+        setLoading(false);
+        return;
     }
+
+    const fetchLeads = async () => {
+        try {
+            const supabase = getClientSupabase();
+            // RLS Policies ensure we ONLY get leads where user_id == auth.uid()
+            const { data, error } = await supabase
+                .from("leads")
+                .select("*")
+                .order("last_seen_at", { ascending: false });
+
+            if (!error && data) {
+                setLeads(data);
+            } else if (error) {
+                console.error("Leads fetch error:", error);
+            }
+        } catch (err) {
+            console.error("Leads exception:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    fetchLeads();
+  }, [user, authLoading]);
+
+  if (loading || authLoading) {
+      return (
+        <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        </div>
+      );
   }
 
   return (
@@ -151,4 +186,3 @@ export default async function LeadsPage() {
     </div>
   );
 }
-

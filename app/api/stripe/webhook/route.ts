@@ -35,8 +35,7 @@ export async function POST(req: Request) {
         return new Response("Missing request_id", { status: 200 }); 
     }
 
-    console.log(`?? Payment Received for Request ID: ${requestId}`);
-
+    // Update Request as Paid
     const { data: updatedReq, error: updateError } = await supabase
         .from("requests")
         .update({
@@ -54,40 +53,61 @@ export async function POST(req: Request) {
         return new Response("Update Failed", { status: 200 }); 
     }
 
-    // Upsert Lead logic (omitted for brevity in this critical fix, but functionality remains if needed - actually I should keep it for full integrity)
-    // Re-adding Lead Upsert for completeness
+    // Legacy/Global Lead Logic (Deprecating or Scoping?)
+    // NEW: Scoped Lead Logic (Multi-Tenant)
     if (updatedReq && updatedReq.requester_phone) {
-        const { data: existingLead } = await supabase.from("leads").select("*").eq("phone", updatedReq.requester_phone).single();
-         const amount = updatedReq.amount_paid;
-         const email = updatedReq.requester_email || session.customer_details?.email;
-         if(existingLead) {
-             await supabase.from("leads").update({ 
-                 total_spent: (Number(existingLead.total_spent) || 0) + amount, 
-                 request_count: (existingLead.request_count || 0) + 1,
-                 last_seen_at: new Date().toISOString(),
-                 email
-             }).eq("id", existingLead.id);
-         } else {
-             await supabase.from("leads").insert({
-                 name: updatedReq.requester_name,
-                 phone: updatedReq.requester_phone,
-                 email,
-                 total_spent: amount,
-                 request_count: 1,
-                 first_seen_at: new Date().toISOString(),
-                 last_seen_at: new Date().toISOString()
-             });
-         }
+        // Fetch the Event Owner (DJ)
+        const { data: eventData, error: eventError } = await supabase
+            .from("events")
+            .select("user_id")
+            .eq("id", updatedReq.event_id)
+            .single();
+
+        const djId = eventData?.user_id;
+
+        if (djId) {
+             const amount = updatedReq.amount_paid;
+             const email = updatedReq.requester_email || session.customer_details?.email;
+
+             // Find Lead for THIS DJ
+             const { data: existingLead } = await supabase
+                .from("leads")
+                .select("*")
+                .eq("user_id", djId)
+                .eq("phone", updatedReq.requester_phone)
+                .maybeSingle();
+
+             if (existingLead) {
+                 await supabase.from("leads").update({ 
+                     total_spent: (Number(existingLead.total_spent) || 0) + amount, 
+                     request_count: (existingLead.request_count || 0) + 1,
+                     last_seen_at: new Date().toISOString(),
+                     email
+                 }).eq("id", existingLead.id);
+             } else {
+                 // Insert New Lead for THIS DJ
+                 // Note: If leads table lacks user_id column yet, this will fail silently/error.
+                 // The Migration SQL must be run.
+                 await supabase.from("leads").insert({
+                     user_id: djId, 
+                     name: updatedReq.requester_name,
+                     phone: updatedReq.requester_phone,
+                     email,
+                     total_spent: amount,
+                     request_count: 1,
+                     first_seen_at: new Date().toISOString(),
+                     last_seen_at: new Date().toISOString()
+                 });
+             }
+        }
     }
   } 
   
-  // 2. Refund Handling (Revenue Assurance)
+  // 2. Refund Handling
   else if (event.type === "charge.refunded") {
       const charge = event.data.object as Stripe.Charge;
       const paymentIntentId = charge.payment_intent as string;
       
-      console.log(`Refund detected for PI: ${paymentIntentId}`);
-
       const { error } = await supabase.from("requests")
         .update({ status: "refunded", is_paid: false })
         .eq("stripe_payment_id", paymentIntentId);
