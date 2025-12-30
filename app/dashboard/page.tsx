@@ -34,7 +34,6 @@ export default function DashboardPage() {
       try {
         const supabase = getSupabaseClient();
 
-        // Fetch events - for now fetch all (will filter by dj_id when we add that column)
         const { data: events } = await supabase
           .from("events")
           .select("*")
@@ -74,22 +73,19 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-      test</div>
+      </div>
     );
   }
 
-  // Get personalized greeting
-  const djName = profile?.dj_name || user?.email?.split("@")[0] || "DJ";
+  const djName = profile?.dj_name || "DJ";
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-6 md:p-8">
-      {/* Personalized Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white">Welcome back, {djName}!</h1>
         <p className="text-gray-400 mt-1">Here is your dashboard overview.</p>
       </div>
 
-      {/* Live Event Banner */}
       {stats.liveEvent && (
         <div className="mb-8 bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-2xl p-6 border border-purple-500/30">
           <div className="flex items-center gap-2 mb-2">
@@ -107,15 +103,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard icon={<DollarSign className="w-6 h-6" />} value={`$${stats.totalRevenue.toFixed(2)}`} label="Total Revenue" color="green" />
         <StatCard icon={<Calendar className="w-6 h-6" />} value={stats.totalEvents.toString()} label="Total Events" color="purple" />
         <StatCard icon={<Music className="w-6 h-6" />} value={stats.totalRequests.toString()} label="Total Requests" color="pink" />
-        <StatCard icon={<Users className="w-6 h-6" />} value={profile?.phone || "Add"} label="Your Phone" color="blue" />
+        <StatCard icon={<Users className="w-6 h-6" />} value={profile?.phone || "-"} label="Your Phone" color="blue" />
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <Link
           href="/dashboard/new"
@@ -144,7 +138,6 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Recent Events */}
       <div>
         <h2 className="text-xl font-bold text-white mb-4">Recent Events</h2>
         {stats.recentEvents.length === 0 ? (
@@ -190,7 +183,7 @@ function StatCard({ icon, value, label, color }: { icon: React.ReactNode; value:
   return (
     <div className={`bg-gradient-to-br ${colors[color]} border rounded-2xl p-5`}>
       <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center mb-3">{icon}</div>
-      <div className="text-3xl font-bold text-white">{value}</div>
+      <div className="text-2xl font-bold text-white">{value}</div>
       <div className="text-gray-400 text-sm mt-1">{label}</div>
     </div>
   );
