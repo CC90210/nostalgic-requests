@@ -5,11 +5,9 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
-// CRITICAL: This prevents static generation
 export const dynamic = 'force-dynamic';
 
 export default async function LivePage() {
-  // Handle build time gracefully
   if (!isSupabaseConfigured()) {
     return (
       <div className="p-8">
@@ -42,14 +40,15 @@ export default async function LivePage() {
     )
   }
 
-  // 2. Fetch initial requests
+  // 2. Fetch initial requests (Strictly PAID only)
   const { data: requests } = await supabase
     .from("requests")
     .select("*")
     .eq("event_id", event.id)
+    .eq("is_paid", true)
     .order("created_at", { ascending: false })
 
-  // 3. Calculate initial revenue
+  // 3. Calculate initial revenue (Strictly PAID only)
   const initialRevenue = requests?.reduce((sum, req) => sum + (req.amount_paid || 0), 0) || 0
 
   return (

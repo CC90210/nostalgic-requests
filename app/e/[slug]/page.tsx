@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { RequestFlow } from "@/components/portal/request-flow";
 import { notFound } from "next/navigation";
-import { DEFAULT_PRICING } from "@/lib/pricing";
+import { DEFAULT_PRICING, PricingConfig } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +40,33 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
        return notFound();
     }
 
-    // Dynamic Pricing Config with Defaults
-    const pricingConfig = {
+    // --- GATEKEEPER ---
+    if (event.status === "draft") {
+        return (
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8 text-center text-white">
+                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                    <span className="text-3xl">??</span>
+                </div>
+                <h1 className="text-3xl font-bold mb-2">Not Live Yet</h1>
+                <p className="text-gray-400 max-w-md">
+                    The DJ is still setting up the vibe. Check back soon!
+                </p>
+            </div>
+        );
+    }
+
+    if (event.status === "ended") {
+        return (
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8 text-center text-white">
+                <h1 className="text-3xl font-bold mb-2">Event Ended ??</h1>
+                <p className="text-gray-400">Thanks for partying with us!</p>
+            </div>
+        );
+    }
+    // ------------------
+
+    // Dynamic Pricing Config
+    const pricingConfig: PricingConfig = {
         price_single: Number(event.price_single) || DEFAULT_PRICING.price_single,
         price_double: Number(event.price_double) || DEFAULT_PRICING.price_double,
         price_party: Number(event.price_party) || DEFAULT_PRICING.price_party,
@@ -52,7 +77,7 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
 
     return (
         <div className="min-h-screen bg-[#0A0A0B] text-white">
-            <div className="p-6 text-center border-b border-white/10">
+            <div className="p-6 text-center border-b border-white/10 bg-white/5 backdrop-blur-lg">
                 <h1 className="text-2xl font-bold">{event.name}</h1>
                 <p className="text-gray-400">{event.venue_name}</p>
             </div>
@@ -70,7 +95,7 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
       console.error("[Portal] Exception:", err);
       return (
           <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-8">
-              <h1 className="text-xl font-bold mb-4">Something went wrong</h1>
+              <h1 className="text-xl font-bold mb-4">System Error</h1>
               <p>{err.message}</p>
           </div>
       );
