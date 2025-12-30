@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
-import { User, Phone, FileText, Image, Loader2, Save, Disc, RefreshCw, Banknote, ExternalLink, CheckCircle } from "lucide-react";
+import { User, Phone, FileText, Image, Loader2, Save, Disc, RefreshCw, Banknote, ExternalLink, CheckCircle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useSearchParams } from "next/navigation";
 
 function getSupabaseClient() {
   return createClient(
@@ -26,6 +27,15 @@ export default function SettingsPage() {
     bio: "",
     profile_image_url: "",
   });
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("onboarding") === "success") {
+        toast.success("Payouts connected successfully! You are ready to Go Live.");
+        refreshProfile(); 
+    }
+  }, [searchParams, refreshProfile]);
 
   useEffect(() => {
     if (profile) {
@@ -85,7 +95,7 @@ export default function SettingsPage() {
         const response = await fetch("/api/stripe/connect", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: user?.id })
+            body: JSON.stringify({ userId: user?.id, email: user?.email }) // Send email for fallback creation
         });
         const data = await response.json();
         if (data.url) {
@@ -102,13 +112,14 @@ export default function SettingsPage() {
   if (loading) return <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center"><Loader2 className="w-8 h-8 text-purple-500 animate-spin" /></div>;
   if (!user) return null;
 
+  // Profile missing - Show recovery or wait for sync
   if (!profile) {
      return (
         <div className="min-h-screen bg-[#0A0A0B] p-8 flex items-center justify-center">
             <div className="text-center">
                 <Loader2 className="w-10 h-10 text-yellow-500 mx-auto animate-spin mb-4" />
                 <p className="text-white">Syncing Profile...</p>
-                <Button onClick={handleRecoverProfile} className="mt-4" variant="outline">Retry</Button>
+                <Button onClick={handleRecoverProfile} className="mt-4" variant="outline">Force Retry</Button>
             </div>
         </div>
      );
@@ -139,6 +150,20 @@ export default function SettingsPage() {
                     </span>
                 )}
             </div>
+            
+            {!isStripeConnected && (
+                <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mb-6">
+                    <h3 className="text-blue-400 font-bold flex items-center gap-2 mb-2 text-sm">
+                        <Info className="w-4 h-4" /> How to Get Paid
+                    </h3>
+                    <ol className="list-decimal list-inside text-sm text-gray-300 space-y-2 ml-1">
+                        <li>Click <strong>Connect with Stripe</strong> below.</li>
+                        <li>Enter your bank details on Stripe&apos;s secure portal.</li>
+                        <li>Once verified, you&apos;ll be redirected back here.</li>
+                        <li>Your <strong>Go Live</strong> button will unlock instantly!</li>
+                    </ol>
+                </div>
+            )}
             
             <p className="text-gray-400 mb-6 text-sm">
                 {isStripeConnected 
