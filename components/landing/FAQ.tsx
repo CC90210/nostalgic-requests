@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
@@ -6,11 +6,12 @@ import { cn } from "@/lib/utils";
 
 export default function FAQ() {
   const faqs = [
-    { q: "Is it really free for performers?", a: "Yes. We don't verify charge a monthly subscription. You keep 100% of the request revenue minus standard Stripe processing fees." },
-    { q: "Do guests need an app?", a: "No app required. The QR code opens a web portal instantly in their browser (Safari, Chrome, etc)." },
-    { q: "How do I get paid?", a: "Funds are transferred directly to your connected Stripe account. You can set up daily or weekly payouts." },
-    { q: "Can I customize the prices?", a: "Absolutely. You have full control over the pricing for Single requests, Packs, and Add-ons." },
-    { q: "Does it work for bands?", a: "Yes! Any performer who takes requests can use it." },
+    { q: "How much does Nostalgic Requests cost?", a: "We take 5% of each transaction. There are no monthly fees, setup fees, or hidden charges. You only pay when you earn. Stripe's standard processing fees (approximately 2.9% + 30 cents) are charged separately by Stripe." },
+    { q: "Do my guests need to download an app?", a: "No. The request portal works instantly in any mobile browser. Guests just scan your QR code and start requesting." },
+    { q: "What payment methods do you accept?", a: "Apple Pay, Google Pay, and all major credit/debit cards. We use Stripe for secure, PCI-compliant payment processing." },
+    { q: "Can I set my own prices?", a: "Absolutely. You control the pricing for every tier and add-on. We provide suggested defaults, but you decide what works for your audience." },
+    { q: "How do I get my money?", a: "Payments go directly to your connected Stripe account. Stripe offers daily payouts to your bank account." },
+    { q: "Is my data secure?", a: "Yes. We use bank-level 256-bit encryption. Your data is stored securely and never sold to third parties." },
   ];
 
   return (

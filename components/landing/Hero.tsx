@@ -59,7 +59,7 @@ export default function Hero() {
                 href="/signup"
                 className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg hover:opacity-90 transition-all transform hover:scale-105 flex items-center justify-center gap-2 shadow-[0_0_40px_-10px_rgba(168,85,247,0.5)]"
               >
-                Start Free <ArrowRight className="w-5 h-5" />
+                Start Free — Keep 95% <ArrowRight className="w-5 h-5" />
               </Link>
               <Link
                 href="/login"
