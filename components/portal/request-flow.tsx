@@ -42,8 +42,6 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
 
   const currentTotal = calculateTotal({ package: packageType, addons });
 
-  // --- Handlers ---
-
   const handleSelectSong = (track: Track) => {
     const newSongs = [...songs, track];
     setSongs(newSongs);
@@ -85,35 +83,52 @@ export function RequestFlow({ eventId, eventSlug }: RequestFlowProps) {
       requesterEmail: requesterInfo.email,
     };
 
-    console.log("[Client Checkout] Sending Payload:", payload);
+    console.log("[Client Checkout] Starting Pending Order Flow...", payload);
 
     try {
-      const response = await fetch("/api/stripe/checkout", {
+      // STEP 1: Create Draft (Save to DB first)
+      const draftRes = await fetch("/api/requests/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || "Server rejected checkout");
+      const draftData = await draftRes.json();
+      if (!draftRes.ok) {
+        throw new Error(draftData.error || "Failed to create draft request");
       }
 
-      if (data.url) {
-        window.location.href = data.url;
+      console.log("[Client Checkout] Draft Created with ID:", draftData.requestId);
+
+      // STEP 2: Checkout with Request ID
+      const checkoutRes = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+           requestId: draftData.requestId,
+           eventSlug: eventSlug,
+           requesterEmail: requesterInfo.email 
+        }),
+      });
+
+      const checkoutData = await checkoutRes.json();
+      
+      if (!checkoutRes.ok) {
+        throw new Error(checkoutData.error || "Server rejected checkout");
+      }
+
+      if (checkoutData.url) {
+        window.location.href = checkoutData.url;
       } else {
         throw new Error("No checkout URL returned");
       }
     } catch (error: any) {
       console.error("[Client Checkout Error]:", error);
       toast.error(`Checkout Failed: ${error.message}`);
-      alert(`Payment Error: ${error.message}`); // Explicit Alert as requested
+      alert(`Payment Error: ${error.message}`); 
       setLoading(false);
     }
   };
-
-  // --- UI Components ---
 
   return (
     <div className="flex flex-col h-full max-w-lg mx-auto w-full relative min-h-[85vh] bg-gradient-to-b from-[#2e0239] via-[#120019] to-black rounded-3xl overflow-hidden shadow-2xl border border-white/10 my-4">
