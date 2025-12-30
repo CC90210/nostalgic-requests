@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
-import { User, Phone, FileText, Image, Loader2, Save, Disc, RefreshCw } from "lucide-react";
+import { User, Phone, FileText, Image, Loader2, Save, Disc, RefreshCw, Banknote, ExternalLink, CheckCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 function getSupabaseClient() {
   return createClient(
@@ -16,6 +17,7 @@ function getSupabaseClient() {
 export default function SettingsPage() {
   const { user, profile, loading, refreshProfile } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
   const [formData, setFormData] = useState({
     dj_name: "",
@@ -40,15 +42,9 @@ export default function SettingsPage() {
   const handleRecoverProfile = async () => {
     setIsRecovering(true);
     toast.info("Recovering profile...");
-    
     const recovered = await refreshProfile();
-    
-    if (recovered) {
-      toast.success("Profile recovered!");
-    } else {
-      toast.error("Recovery failed. Please try signing out and back in.");
-    }
-    
+    if (recovered) toast.success("Profile recovered!");
+    else toast.error("Recovery failed.");
     setIsRecovering(false);
   };
 
@@ -59,9 +55,7 @@ export default function SettingsPage() {
       toast.error("DJ Name is required");
       return;
     }
-
     setIsSaving(true);
-
     try {
       const supabase = getSupabaseClient();
       const { error } = await supabase
@@ -75,74 +69,101 @@ export default function SettingsPage() {
         })
         .eq("user_id", user.id);
 
-      if (error) {
-        toast.error("Failed to update: " + error.message);
-        return;
-      }
-
+      if (error) throw error;
       await refreshProfile();
       toast.success("Profile updated!");
-    } catch (error) {
-      toast.error("Something went wrong");
+    } catch (error: any) {
+      toast.error(error.message || "Something went wrong");
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-      </div>
-    );
-  }
+  const handleConnectStripe = async () => {
+    setIsConnecting(true);
+    try {
+        const response = await fetch("/api/stripe/connect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: user?.id })
+        });
+        const data = await response.json();
+        if (data.url) {
+            window.location.href = data.url;
+        } else {
+            throw new Error(data.error || "Failed to get onboarding link");
+        }
+    } catch (error: any) {
+        toast.error(error.message);
+        setIsConnecting(false);
+    }
+  };
 
+  if (loading) return <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center"><Loader2 className="w-8 h-8 text-purple-500 animate-spin" /></div>;
   if (!user) return null;
 
-  // Profile missing - Show recovery option instead of error
   if (!profile) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-[#1A1A1B] rounded-2xl p-8 border border-[#2D2D2D] text-center">
-            <Loader2 className={`w-16 h-16 mx-auto mb-4 ${isRecovering ? "animate-spin text-purple-500" : "text-yellow-500"}`} />
-            <h2 className="text-2xl font-bold text-white mb-2">
-              {isRecovering ? "Recovering Profile..." : "Syncing Your Profile"}
-            </h2>
-            <p className="text-gray-400 mb-6">
-              {isRecovering 
-                ? "Please wait while we create your profile..."
-                : "Your profile is being set up. This should only take a moment."
-              }
-            </p>
-            
-            {!isRecovering && (
-              <button
-                onClick={handleRecoverProfile}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 rounded-xl text-white font-medium"
-              >
-                <RefreshCw className="w-5 h-5" />
-                Create Profile Now
-              </button>
-            )}
-            
-            <div className="mt-6 bg-[#0A0A0B] rounded-xl p-4 text-left">
-              <p className="text-gray-500 text-xs">Debug: User ID: {user.id}</p>
+     return (
+        <div className="min-h-screen bg-[#0A0A0B] p-8 flex items-center justify-center">
+            <div className="text-center">
+                <Loader2 className="w-10 h-10 text-yellow-500 mx-auto animate-spin mb-4" />
+                <p className="text-white">Syncing Profile...</p>
+                <Button onClick={handleRecoverProfile} className="mt-4" variant="outline">Retry</Button>
             </div>
-          </div>
         </div>
-      </div>
-    );
+     );
   }
+
+  const isStripeConnected = profile.stripe_onboarding_complete;
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="mb-8">
+      <div className="max-w-3xl mx-auto space-y-8">
+        
+        {/* Header */}
+        <div>
           <h1 className="text-3xl font-bold text-white">Settings</h1>
-          <p className="text-gray-400 mt-2">Manage your DJ profile</p>
+          <p className="text-gray-400 mt-2">Manage your DJ profile and payout settings.</p>
         </div>
 
+        {/* Payouts Card */}
+        <div className="bg-[#1A1A1B] rounded-2xl p-6 border border-[#2D2D2D]">
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Banknote className="w-6 h-6 text-green-400" />
+                    Payouts & Banking
+                </h2>
+                {isStripeConnected && (
+                    <span className="flex items-center gap-1 text-green-400 text-sm font-bold bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
+                        <CheckCircle className="w-4 h-4" /> Active
+                    </span>
+                )}
+            </div>
+            
+            <p className="text-gray-400 mb-6 text-sm">
+                {isStripeConnected 
+                    ? "Your bank account is connected. You receive payouts instantly when requests are made."
+                    : "Connect your bank account to start accepting paid song requests. We use Stripe for secure payouts."
+                }
+            </p>
+
+            {isStripeConnected ? (
+                 <Button onClick={handleConnectStripe} variant="outline" className="w-full border-gray-700 hover:bg-gray-800 text-white">
+                    <ExternalLink className="w-4 h-4 mr-2" /> Manage Stripe Account
+                 </Button>
+            ) : (
+                <Button 
+                    onClick={handleConnectStripe} 
+                    disabled={isConnecting}
+                    className="w-full bg-[#635BFF] hover:bg-[#534be0] text-white font-bold h-12"
+                >
+                    {isConnecting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5 mr-2" />}
+                    Connect with Stripe
+                </Button>
+            )}
+        </div>
+
+        {/* Profile Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="bg-[#1A1A1B] rounded-2xl p-6 border border-[#2D2D2D] space-y-6">
             <div className="flex items-center gap-4">
@@ -159,27 +180,28 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">DJ Name *</label>
-              <input
-                type="text"
-                value={formData.dj_name}
-                onChange={(e) => setFormData({ ...formData, dj_name: e.target.value })}
-                className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500"
-                disabled={isSaving}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500"
-                disabled={isSaving}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">DJ Name *</label>
+                <input
+                    type="text"
+                    value={formData.dj_name}
+                    onChange={(e) => setFormData({ ...formData, dj_name: e.target.value })}
+                    className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500"
+                    disabled={isSaving}
+                    required
+                />
+                </div>
+                 <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
+                <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500"
+                    disabled={isSaving}
+                />
+                </div>
             </div>
 
             <div>
@@ -187,24 +209,22 @@ export default function SettingsPage() {
               <textarea
                 value={formData.bio}
                 onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                rows={4}
+                rows={3}
                 className="w-full px-4 py-3 bg-[#0A0A0B] border border-[#2D2D2D] rounded-xl text-white focus:border-purple-500 resize-none"
                 disabled={isSaving}
               />
             </div>
-          </div>
-
-          <button
+             <button
             type="submit"
             disabled={isSaving}
-            className="w-full py-4 rounded-xl font-semibold bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center gap-2"
+            className="w-full py-4 rounded-xl font-semibold bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center gap-2 hover:from-purple-500 hover:to-pink-500"
           >
             {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            {isSaving ? "Saving..." : "Save Changes"}
+            {isSaving ? "Saving..." : "Save Profile Changes"}
           </button>
+          </div>
         </form>
       </div>
     </div>
   );
 }
-
