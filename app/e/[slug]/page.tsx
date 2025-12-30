@@ -1,59 +1,82 @@
-﻿import { notFound } from "next/navigation"
-import { RequestFlow } from "@/components/portal/request-flow"
-import { MapPin } from "lucide-react"
-import { createClient } from "@supabase/supabase-js"
+import { notFound } from "next/navigation";
+import { RequestFlow } from "@/components/portal/request-flow";
+import { MapPin } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
 
+// Force dynamic - we need fresh data every request
 export const dynamic = "force-dynamic";
-
-function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
-  if (!url || !key) {
-    throw new Error("Missing Supabase configuration");
-  }
-  
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false }
-  });
-}
 
 export default async function EventPortalPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   
+  console.log("[EventPortal] Loading slug:", slug);
+
   if (!slug) {
+    console.error("[EventPortal] No slug provided");
     return notFound();
   }
 
-  let event = null;
-  
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from("events")
-      .select("*")
-      .eq("unique_slug", slug)
-      .single();
+  // Use Service Role to BYPASS RLS explicitly
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (error || !data) {
-      console.error("Event not found:", error);
-      return notFound();
-    }
-    
-    event = data;
-  } catch (error) {
-    console.error("Failed to fetch event:", error);
-    return notFound();
+  if (!supabaseUrl || !serviceKey) {
+    console.error("[EventPortal] Missing Env Vars! URL:", !!supabaseUrl, "Key:", !!serviceKey);
+    return (
+      <div className="flex h-screen items-center justify-center bg-black text-white">
+        <div className="text-center">
+          <h1 className="text-xl font-bold text-red-500">Configuration Error</h1>
+          <p>Server environment missing credentials.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false }
+  });
+
+  const { data: event, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("unique_slug", slug)
+    .single();
+
+  if (error) {
+    console.error("[EventPortal] DB Error:", error);
+    return (
+      <div className="flex h-screen items-center justify-center bg-black text-white p-6">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold text-red-500">Error Loading Event</h1>
+          <p className="text-gray-400">Database connection failed: {error.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!event) {
+    console.error("[EventPortal] Event not found for slug:", slug);
+    return (
+      <div className="flex h-screen items-center justify-center bg-black text-white p-6">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold text-yellow-500">Event Not Found</h1>
+          <p className="text-gray-400">We couldn''t find an event with this link.</p>
+          <code className="bg-gray-800 p-2 rounded text-xs">{slug}</code>
+        </div>
+      </div>
+    );
   }
 
   if (event.status === "ended") {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] flex flex-col items-center justify-center p-4 text-center">
-        <h1 className="text-3xl font-bold text-white mb-2">Event Ended</h1>
+      <div className="min-h-screen bg-[#0A0A0B] flex flex-col items-center justify-center p-4 text-center text-white">
+        <h1 className="text-3xl font-bold mb-2">Event Ended</h1>
         <p className="text-gray-400">Song requests for this event are now closed.</p>
       </div>
     );
   }
+
+  console.log("[EventPortal] Success! Rendering event:", event.name);
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white pb-safe">
@@ -70,7 +93,7 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
         )}
       </div>
 
-      {/* Main Content - Song Request Flow */}
+      {/* Main Content */}
       <div className="p-4">
         <RequestFlow 
           eventId={event.id} 
@@ -81,4 +104,3 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
     </div>
   );
 }
-
