@@ -20,7 +20,6 @@ interface AuthContextType {
   session: Session | null;
   profile: DJProfile | null;
   loading: boolean;
-  profileLoading: boolean;
   signUp: (email: string, password: string, djName: string, phone: string, fullName?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -50,47 +49,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<DJProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(false);
 
-  // Fetch profile - returns the profile or null
-  const fetchProfile = useCallback(async (userId: string): Promise<DJProfile | null> => {
-    setProfileLoading(true);
+  // Self-healing: If profile missing, create it via API
+  const ensureProfile = useCallback(async (authUser: User): Promise<DJProfile | null> => {
+    const supabase = getSupabaseClient();
+    
+    console.log("[Auth] Checking profile for:", authUser.email);
+    
+    // Try to fetch existing profile
+    const { data: existingProfile, error: fetchError } = await supabase
+      .from("dj_profiles")
+      .select("*")
+      .eq("user_id", authUser.id)
+      .maybeSingle();
+
+    if (existingProfile) {
+      console.log("[Auth] Profile found:", existingProfile.dj_name);
+      setProfile(existingProfile);
+      return existingProfile;
+    }
+
+    // SELF-HEALING: Profile is missing, create it now!
+    console.warn("[Auth] Profile MISSING! Triggering self-heal...");
     
     try {
-      const supabase = getSupabaseClient();
-      console.log("[Auth] Fetching profile for user_id:", userId);
+      const response = await fetch("/api/auth/create-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: authUser.id,
+          email: authUser.email,
+          dj_name: authUser.user_metadata?.dj_name || authUser.email?.split("@")[0] || "DJ",
+          phone: authUser.user_metadata?.phone || null,
+        }),
+      });
+
+      const result = await response.json();
       
-      const { data, error } = await supabase
-        .from("dj_profiles")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (error) {
-        console.error("[Auth] Profile fetch error:", error.message);
-        setProfile(null);
-        return null;
-      }
-
-      if (data) {
-        console.log("[Auth] Profile found:", data.dj_name, "| ID:", data.id);
-        setProfile(data);
-        return data;
+      if (response.ok && result.profile) {
+        console.log("[Auth] Self-heal SUCCESS:", result.profile.dj_name);
+        setProfile(result.profile);
+        return result.profile;
       } else {
-        console.warn("[Auth] No profile found for user_id:", userId);
-        setProfile(null);
+        console.error("[Auth] Self-heal FAILED:", result.error);
         return null;
       }
-    } catch (error) {
-      console.error("[Auth] Profile fetch exception:", error);
-      setProfile(null);
+    } catch (err) {
+      console.error("[Auth] Self-heal exception:", err);
       return null;
-    } finally {
-      setProfileLoading(false);
     }
   }, []);
 
-  // Initialize auth state
   useEffect(() => {
     const supabase = getSupabaseClient();
     let mounted = true;
@@ -98,21 +107,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initializeAuth = async () => {
       try {
         console.log("[Auth] Initializing...");
-        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error("[Auth] Session error:", error);
-        }
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
         
         if (!mounted) return;
         
         if (currentSession?.user) {
-          console.log("[Auth] Session found for:", currentSession.user.email);
+          console.log("[Auth] Session found:", currentSession.user.email);
           setSession(currentSession);
           setUser(currentSession.user);
-          await fetchProfile(currentSession.user.id);
+          await ensureProfile(currentSession.user);
         } else {
-          console.log("[Auth] No session found");
+          console.log("[Auth] No session");
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -120,16 +125,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error("[Auth] Init error:", error);
       } finally {
-        if (mounted) {
-          setLoading(false);
-          console.log("[Auth] Init complete, loading = false");
-        }
+        if (mounted) setLoading(false);
       }
     };
 
     initializeAuth();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         console.log("[Auth] Event:", event);
@@ -137,7 +138,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
 
         if (event === "SIGNED_OUT") {
-          console.log("[Auth] User signed out, clearing state");
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newSession?.user) {
           setSession(newSession);
           setUser(newSession.user);
-          await fetchProfile(newSession.user.id);
+          await ensureProfile(newSession.user);
         }
         
         setLoading(false);
@@ -159,16 +159,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [ensureProfile]);
 
   const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string) => {
     const supabase = getSupabaseClient();
     
-    console.log("[Auth] Signup starting for:", email);
+    console.log("[Auth] Signup for:", email);
     
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: { dj_name: djName, phone: phone }
+      }
     });
 
     if (error) {
@@ -180,9 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: { message: "Failed to create user" } };
     }
 
-    console.log("[Auth] User created:", data.user.id);
-
-    // Create DJ profile via API
+    // Create profile via API immediately
     try {
       const response = await fetch("/api/auth/create-profile", {
         method: "POST",
@@ -199,13 +200,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await response.json();
       
       if (response.ok && result.profile) {
-        console.log("[Auth] Profile created via API:", result.profile.dj_name);
+        console.log("[Auth] Profile created:", result.profile.dj_name);
         setProfile(result.profile);
       } else {
         console.error("[Auth] Profile API error:", result);
       }
-    } catch (profileError) {
-      console.error("[Auth] Profile creation exception:", profileError);
+    } catch (err) {
+      console.error("[Auth] Profile exception:", err);
     }
 
     if (data.session) {
@@ -219,23 +220,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const supabase = getSupabaseClient();
     
-    console.log("[Auth] Sign in starting for:", email);
+    console.log("[Auth] Sign in:", email);
     
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) {
-      console.error("[Auth] Sign in error:", error);
       return { error };
     }
 
     if (data.user) {
-      console.log("[Auth] Sign in successful, fetching profile...");
       setSession(data.session);
       setUser(data.user);
-      await fetchProfile(data.user.id);
+      await ensureProfile(data.user);
     }
     
     return { error: null };
@@ -243,39 +239,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     const supabase = getSupabaseClient();
-    
-    console.log("[Auth] Signing out...");
-    
-    // Clear state first
     setUser(null);
     setSession(null);
     setProfile(null);
-    
     await supabase.auth.signOut();
-    
-    console.log("[Auth] Sign out complete");
   };
 
   const refreshProfile = async (): Promise<DJProfile | null> => {
     if (user) {
-      console.log("[Auth] Refreshing profile for:", user.id);
-      return await fetchProfile(user.id);
+      return await ensureProfile(user);
     }
     return null;
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      session, 
-      profile, 
-      loading,
-      profileLoading,
-      signUp, 
-      signIn, 
-      signOut, 
-      refreshProfile 
-    }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signUp, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
