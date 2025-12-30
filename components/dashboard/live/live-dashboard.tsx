@@ -20,10 +20,14 @@ interface Request {
   has_guaranteed_next: boolean;
   status: "pending" | "playing" | "played";
   created_at: string;
+  is_paid: boolean;
 }
 
 export function LiveDashboard({ eventId, eventName, initialRequests, initialRevenue }: any) {
-  const [requests, setRequests] = useState<Request[]>(initialRequests);
+  // FILTER INITIAL REQUESTS TO PAID ONLY
+  const [requests, setRequests] = useState<Request[]>(
+     (initialRequests as Request[]).filter(r => r.is_paid !== false)
+  );
   const [revenue, setRevenue] = useState(initialRevenue);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -36,37 +40,58 @@ export function LiveDashboard({ eventId, eventName, initialRequests, initialReve
         { event: "*", schema: "public", table: "requests", filter: `event_id=eq.${eventId}` },
         (payload) => {
           if (payload.eventType === "INSERT") {
-            const newReq = payload.new as Request;
-            setRequests((p) => [newReq, ...p]);
-            setRevenue((p: number) => p + (newReq.amount_paid || 0));
-            if (soundEnabled) new Audio("/sounds/notification.mp3").play().catch(() => {});
-            toast.success(`New Request: ${newReq.song_title}`);
+             // A draft was created (is_paid=false). Ignore it UI-wise?
+             // Actually, Realtime will catch Drafts now. We must check is_paid.
+             // But wait, Drafts are INSERT.
+             // Payment Success is UPDATE.
+             const newReq = payload.new as Request;
+             if (newReq.is_paid) {
+                 addRequestToFeed(newReq);
+             }
           } else if (payload.eventType === "UPDATE") {
-            setRequests((p) => p.map((r) => (r.id === payload.new.id ? (payload.new as Request) : r)));
+             const updatedReq = payload.new as Request;
+             // If a draft becomes paid, treat it like an insert!
+             if (updatedReq.is_paid && !requests.some(r => r.id === updatedReq.id)) {
+                 addRequestToFeed(updatedReq);
+             } else {
+                 setRequests((p) => p.map((r) => (r.id === payload.new.id ? updatedReq : r)));
+             }
           }
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [eventId, soundEnabled]);
+  }, [eventId, soundEnabled, requests]); // Dependency on requests for duplication check
+
+  const addRequestToFeed = (req: Request) => {
+      setRequests((p) => {
+          if (p.some(existing => existing.id === req.id)) return p;
+          return [req, ...p];
+      });
+      // Revenue calculation might be tricky if it was already counted?
+      // Dashboard sends initialRevenue.
+      // If we add a new req, we add to revenue.
+      // If we update a draft to paid, we add to revenue.
+      setRevenue((p: number) => p + (req.amount_paid || 0));
+      if (soundEnabled) new Audio("/sounds/notification.mp3").play().catch(() => {});
+      toast.success(`New Request: ${req.song_title}`);
+  }
 
   const handleCreateStatus = async (id: string, status: "played" | "playing") => {
-     // Optimistic
      setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
      const supabase = getSupabase();
      await supabase.from("requests").update({ status }).eq("id", id);
   };
 
-  const pendingRequests = requests.filter((r) => r.status === "pending").sort((a,b) => {
-      // Guaranteed top, then Priority, then Oldest
+  const pendingRequests = requests.filter((r) => r.status === "pending" && r.is_paid).sort((a,b) => {
        if (a.has_guaranteed_next !== b.has_guaranteed_next) return a.has_guaranteed_next ? -1 : 1;
        if (a.has_priority !== b.has_priority) return a.has_priority ? -1 : 1;
        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 
-  const playingRequest = requests.find(r => r.status === "playing");
-  const recentPlayed = requests.filter(r => r.status === "played").sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
+  const playingRequest = requests.find(r => r.status === "playing" && r.is_paid);
+  const recentPlayed = requests.filter(r => r.status === "played" && r.is_paid).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
 
   return (
     <div className="min-h-screen bg-black text-white p-4 space-y-6">

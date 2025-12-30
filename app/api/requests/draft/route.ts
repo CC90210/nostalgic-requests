@@ -21,30 +21,27 @@ export async function POST(req: NextRequest) {
         requesterEmail 
     } = body;
 
-    // Server-side Price Calculation (Secure)
+    // Server-side Price Calculation
     const amountPaid = calculateTotal({ package: packageType, addons });
     const primarySong = songs[0] || {};
 
     const { data, error } = await supabase.from("requests").insert({
         event_id: eventId,
-        // Content
         song_title: primarySong.title || "Unknown",
         song_artist: primarySong.artist || "Unknown",
         song_album: primarySong.album || null,
         song_artwork_url: primarySong.artworkUrl || "https://placehold.co/400?text=No+Art",
         song_itunes_id: primarySong.id ? String(primarySong.id) : null,
-        // User
         requester_name: requesterName || "Anonymous",
         requester_phone: requesterPhone || null,
         requester_email: requesterEmail || null,
-        // Metadata
         amount_paid: amountPaid,
         song_count: songs.length,
         has_priority: addons?.priority || false,
         has_shoutout: addons?.shoutout || false,
         has_guaranteed_next: addons?.guaranteedNext || false,
-        // Status
-        status: "awaiting_payment", // Or 'draft'
+        // STATUS: Use 'pending' but is_paid=false so it doesn't show up yet
+        status: "pending", 
         is_paid: false
     }).select("id").single();
 
