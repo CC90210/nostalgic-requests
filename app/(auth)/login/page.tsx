@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
+import Image from "next/image";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
-import { Music, Mail, Lock, User, Disc, Loader2, Phone } from "lucide-react";
+import {  Mail, Lock, User, Disc, Loader2, Phone } from "lucide-react";
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -124,9 +125,7 @@ export default function LoginPage() {
 
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl mb-4 shadow-lg shadow-purple-500/30">
-            <Music className="w-8 h-8 text-white" />
-          </div>
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4 shadow-lg shadow-purple-500/30 overflow-hidden bg-black border border-white/10"><Image src="/logo.png" alt="Logo" width={80} height={80} className="w-full h-full object-cover" /></div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-600 bg-clip-text text-transparent">
             Nostalgic
           </h1>
@@ -299,3 +298,6 @@ export default function LoginPage() {
     </div>
   );
 }
+
+
+

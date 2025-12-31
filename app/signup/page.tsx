@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+import Image from "next/image";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -123,9 +124,7 @@ export default function SignupPage() {
 
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl mb-4 shadow-lg shadow-purple-500/30 hover:scale-105 transition-transform">
-            <Music className="w-8 h-8 text-white" />
-          </Link>
+          <Link href="/" className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4 shadow-lg shadow-purple-500/30 overflow-hidden bg-black border border-white/10 hover:scale-105 transition-transform"><Image src="/logo.png" alt="Logo" width={80} height={80} className="w-full h-full object-cover" /></Link>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-600 bg-clip-text text-transparent">
             Nostalgic
           </h1>
@@ -298,3 +297,6 @@ export default function SignupPage() {
     </div>
   );
 }
+
+
+

@@ -1,13 +1,12 @@
 ﻿"use client";
 
-import { Music } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 export default function Footer() {
   const pathname = usePathname();
 
-  // Helper to ensure scroll to top if needed
   const handleScroll = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -17,8 +16,8 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
             
             <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
-                    <Music className="w-4 h-4 text-white" />
+                <div className="w-8 h-8 rounded-lg overflow-hidden bg-black border border-white/10">
+                    <Image src="/logo.png" alt="Logo" width={32} height={32} className="w-full h-full object-cover" />
                 </div>
                 <span className="font-bold text-white">Nostalgic Requests</span>
             </div>

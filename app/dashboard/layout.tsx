@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -66,9 +67,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         {/* Logo */}
         <div className="p-6 border-b border-[#2D2D2D]">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
-              <Music className="w-5 h-5 text-white" />
-            </div>
+             <div className="w-10 h-10 rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg shadow-purple-500/20">
+                <Image src="/logo.png" alt="Nostalgic Requests" width={40} height={40} className="w-full h-full object-cover" />
+             </div>
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
                 Nostalgic
@@ -136,9 +137,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="md:hidden fixed top-0 left-0 right-0 bg-[#0F0F10] border-b border-[#2D2D2D] p-4 z-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
-              <Music className="w-4 h-4 text-white" />
-            </div>
+             <div className="w-8 h-8 rounded-lg overflow-hidden bg-black border border-white/10">
+                <Image src="/logo.png" alt="Logo" width={32} height={32} className="w-full h-full object-cover" />
+             </div>
             <span className="font-bold text-white truncate max-w-[120px]">{displayName}</span>
           </div>
           <div className="flex gap-1">
