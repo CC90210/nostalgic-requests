@@ -55,7 +55,7 @@ export default function WelcomeEmail({ djName = "DJ" }: WelcomeEmailProps) {
               <Section className="mt-[32px] mb-[32px]">
                 <Button
                   className="bg-[#7C3AED] rounded-lg text-white text-[14px] font-semibold no-underline text-center px-5 py-3"
-                  href="https://nostalgic-requests.vercel.app/dashboard/new"
+                  href="https://nostalgicrequests.com/dashboard/new"
                 >
                   Create Your First Event
                 </Button>
@@ -64,8 +64,8 @@ export default function WelcomeEmail({ djName = "DJ" }: WelcomeEmailProps) {
               <Text className="text-gray-500 text-[14px] leading-[24px]">
                 If the button above doesn''t work, copy and paste this link into your browser:
                 <br />
-                <a href="https://nostalgic-requests.vercel.app/dashboard" className="text-[#EC4899] no-underline">
-                  https://nostalgic-requests.vercel.app/dashboard
+                <a href="https://nostalgicrequests.com/dashboard" className="text-[#EC4899] no-underline">
+                  https://nostalgicrequests.com/dashboard
                 </a>
               </Text>
             </Section>
@@ -81,4 +81,5 @@ export default function WelcomeEmail({ djName = "DJ" }: WelcomeEmailProps) {
     </Html>
   );
 }
+
 

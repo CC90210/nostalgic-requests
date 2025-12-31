@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
@@ -11,7 +11,7 @@ export default function EventQRCode({ slug }: { slug: string }) {
     // Fallback to Env var if window undefined (SSR), though this is client component
     const origin = typeof window !== "undefined" 
       ? window.location.origin 
-      : process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
+      : process.env.NEXT_PUBLIC_APP_URL || "https://nostalgicrequests.com";
     
     const fullUrl = `${origin}/e/${slug}`;
     setUrl(fullUrl);
@@ -41,3 +41,4 @@ export default function EventQRCode({ slug }: { slug: string }) {
     </div>
   );
 }
+

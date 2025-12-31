@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { notFound, useParams } from "next/navigation";
@@ -114,7 +114,7 @@ export default function EventDetailsPage() {
     );
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgicrequests.com";
   const portalUrl = `${appUrl}/e/${event.unique_slug}`;
 
   const initialPricing = {
@@ -274,3 +274,4 @@ function StatCard({ icon, value, label, color }: { icon: React.ReactNode; value:
     </div>
   );
 }
+
