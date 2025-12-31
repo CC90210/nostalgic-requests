@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { QrCode, Smartphone, ListMusic, CreditCard } from "lucide-react";
 
@@ -35,7 +35,7 @@ export default function HowItWorks() {
   ];
 
   return (
-    <section className="py-24 bg-[#0A0A0B] relative">
+    <section id="how-it-works" className="py-24 bg-[#0A0A0B] relative scroll-mt-20">
       <div className="max-w-7xl mx-auto px-6">
         
         <div className="text-center mb-16">
@@ -70,3 +70,4 @@ export default function HowItWorks() {
     </section>
   );
 }
+

@@ -4,7 +4,7 @@ import { Check, Sparkles } from "lucide-react";
 
 export default function Pricing() {
   return (
-    <section className="py-24 bg-[#0A0A0B]">
+    <section id="pricing" className="py-24 bg-[#0A0A0B] scroll-mt-20">
       <div className="max-w-7xl mx-auto px-6">
         
         <div className="text-center mb-16">
@@ -88,3 +88,4 @@ export default function Pricing() {
     </section>
   );
 }
+

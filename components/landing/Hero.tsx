@@ -74,7 +74,7 @@ export default function Hero() {
              initial={{ opacity: 0, scale: 0.9 }}
              animate={{ opacity: 1, scale: 1 }}
              transition={{ delay: 0.5, duration: 1 }}
-             className="mt-20 relative mx-auto max-w-5xl"
+             className="mt-32 md:mt-40 relative mx-auto max-w-5xl"
         >
             <div className="aspect-[16/9] bg-gradient-to-br from-[#1A1A1B] to-[#0F0F10] rounded-t-3xl border border-white/10 border-b-0 shadow-2xl overflow-hidden p-2 md:p-4">
                 {/* Abstract Dashboard UI Representation */}
@@ -102,4 +102,5 @@ export default function Hero() {
     </section>
   );
 }
+
 
