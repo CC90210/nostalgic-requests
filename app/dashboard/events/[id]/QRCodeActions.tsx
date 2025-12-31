@@ -1,26 +1,47 @@
 ﻿"use client";
 
 import { useState } from "react";
-import { Download, Copy, Check } from "lucide-react";
+import { Download, Copy, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import QRCode from "qrcode";
 
 interface QRCodeActionsProps {
-  qrCodeUrl: string;
+  qrCodeUrl?: string | null; // Optional now
   portalUrl: string;
 }
 
-export default function QRCodeActions({ qrCodeUrl, portalUrl }: QRCodeActionsProps) {
+export default function QRCodeActions({ portalUrl }: QRCodeActionsProps) {
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
-  const handleDownload = () => {
-    // Convert data URL to blob and download
-    const link = document.createElement("a");
-    link.href = qrCodeUrl;
-    link.download = "nostalgic-qr-code.png";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("QR code downloaded!");
+  const handleDownload = async () => {
+    try {
+      setDownloading(true);
+      // Generate QR Code as Data URL (PNG)
+      const dataUrl = await QRCode.toDataURL(portalUrl, {
+        width: 1200, // High resolution for print
+        margin: 2,
+        color: {
+          dark: "#000000",
+          light: "#FFFFFF"
+        }
+      });
+
+      // Create download link
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = `nostalgic-qr-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("QR code downloaded!");
+    } catch (err) {
+      console.error("QR Download Error:", err);
+      toast.error("Failed to generate QR code download.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleCopyLink = async () => {
@@ -38,10 +59,11 @@ export default function QRCodeActions({ qrCodeUrl, portalUrl }: QRCodeActionsPro
     <div className="flex gap-2 w-full">
       <button
         onClick={handleDownload}
-        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-xl text-white font-medium transition-colors"
+        disabled={downloading}
+        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white font-medium transition-colors"
       >
-        <Download className="w-4 h-4" />
-        Download
+        {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {downloading ? "Generating..." : "Download"}
       </button>
       <button
         onClick={handleCopyLink}
@@ -53,4 +75,3 @@ export default function QRCodeActions({ qrCodeUrl, portalUrl }: QRCodeActionsPro
     </div>
   );
 }
-
