@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { User, Phone, FileText, Image as ImageIcon, Loader2, Save, Disc, Banknote, ExternalLink, CheckCircle, Info, Sparkles, Crown, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -26,7 +25,6 @@ export default function SettingsPage() {
 
   const searchParams = useSearchParams();
 
-  // Handle successful onboarding redirect
   useEffect(() => {
     if (searchParams.get("onboarding") === "success") {
         toast.success("Payouts connected successfully! You are ready to Go Live.");
@@ -35,7 +33,6 @@ export default function SettingsPage() {
     }
   }, [searchParams, refreshProfile, router]);
 
-  // Sync Form with Profile Data
   useEffect(() => {
     if (profile) {
       setFormData({
@@ -52,43 +49,33 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-        toast.error("Image too large. Max 2MB.");
+    if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image too large. Max 5MB.");
         return;
     }
 
     setIsUploading(true);
     try {
-        const supabase = createBrowserClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", file);
+        uploadFormData.append("userId", user.id);
 
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${user.id}-${Math.random()}.${fileExt}`;
-        const filePath = `${fileName}`;
+        const response = await fetch("/api/user/upload-avatar", {
+            method: "POST",
+            body: uploadFormData,
+        });
 
-        // Attempt upload to 'avatars' bucket
-        const { error: uploadError } = await supabase.storage
-            .from("avatars")
-            .upload(filePath, file);
-
-        if (uploadError) {
-             console.error("Upload error:", uploadError);
-             if (uploadError.message.includes("Bucket not found")) {
-                 throw new Error("Storage bucket 'avatars' not found. Please contact support.");
-             }
-             throw uploadError;
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || "Failed to upload image.");
         }
 
-        const { data: { publicUrl } } = supabase.storage
-            .from("avatars")
-            .getPublicUrl(filePath);
+        const { url } = await response.json();
 
-        // Update form data immediately for preview
-        setFormData(prev => ({ ...prev, profile_image_url: publicUrl }));
+        setFormData(prev => ({ ...prev, profile_image_url: url }));
         toast.success("Image uploaded! Don't forget to save changes.");
     } catch (error: any) {
+        console.error("Upload error:", error);
         toast.error(error.message || "Failed to upload image.");
     } finally {
         setIsUploading(false);
@@ -164,14 +151,11 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 md:p-8">
       <div className="max-w-3xl mx-auto space-y-8">
-        
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-white">Settings</h1>
           <p className="text-gray-400 mt-2">Manage your DJ profile and payout settings.</p>
         </div>
 
-        {/* New DJ Banner */}
         {isNewDJ && (
             <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-l-4 border-purple-500 p-4 rounded-r-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
                 <div className="p-2 bg-purple-500/20 rounded-full">
@@ -184,7 +168,6 @@ export default function SettingsPage() {
             </div>
         )}
 
-        {/* Payouts Card */}
         <div className="bg-[#1A1A1B] rounded-2xl p-6 border border-[#2D2D2D]">
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -242,11 +225,9 @@ export default function SettingsPage() {
             )}
         </div>
 
-        {/* Profile Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="bg-[#1A1A1B] rounded-2xl p-6 border border-[#2D2D2D] space-y-6">
             
-            {/* Header / Avatar Edit */}
             <div className="flex items-center gap-6">
               <div 
                 className="relative group w-24 h-24 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center overflow-hidden cursor-pointer shadow-lg hover:shadow-purple-500/20 transition-all"
@@ -258,7 +239,6 @@ export default function SettingsPage() {
                   <Disc className="w-10 h-10 text-white group-hover:scale-110 transition-transform" />
                 )}
                 
-                {/* Overlay */}
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     {isUploading ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <Upload className="w-6 h-6 text-white" />}
                 </div>
