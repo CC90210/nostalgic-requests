@@ -143,7 +143,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <span className="font-bold text-white truncate max-w-[120px]">{displayName}</span>
           </div>
           <div className="flex gap-1">
-            {navItems.slice(0, 4).map((item) => {
+            {navItems.slice(0, 5).map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
               return (
