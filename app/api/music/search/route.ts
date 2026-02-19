@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchTracks } from '@/lib/itunes';
+import { z } from 'zod';
+
+const searchSchema = z.object({
+  q: z.string().min(1).max(200),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const query = searchParams.get('q');
-  const limit = parseInt(searchParams.get('limit') || '20', 10);
+  const searchParams = Object.fromEntries(request.nextUrl.searchParams);
 
-  if (!query) {
-    return NextResponse.json({ error: 'Query parameter required' }, { status: 400 });
+  const validation = searchSchema.safeParse(searchParams);
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Invalid search parameters' }, { status: 400 });
   }
+
+  const { q: query, limit } = validation.data;
 
   try {
     const tracks = await searchTracks(query, limit);
