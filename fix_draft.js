@@ -1,0 +1,11 @@
+﻿const fs = require('fs');
+const p = 'app/api/requests/draft/route.ts';
+let c = fs.readFileSync(p, 'utf8');
+c = c.replace('import { z } from "zod";', 'import { z } from "zod";\nimport { rateLimit } from "@/lib/rate-limit";');
+const schema = 'const requestSchema = z.object({\n    song_title: z.string().min(1).max(200).trim(),\n    song_artist: z.string().min(1).max(200).trim(),\n    requester_name: z.string().min(1).max(100).trim(),\n    requester_phone: z.string().min(10).max(20).optional(),\n    requester_email: z.string().email().max(254).optional(),\n    event_id: z.string().uuid(),\n    amount_paid: z.number().positive().max(1000),\n});';
+c = c.replace('const draftSchema =', schema + '\n\nconst draftSchema =');
+c = c.replace('const body = await req.json();', 'const ip = req.headers.get("x-forwarded-for") || "unknown";\n        const { allowed } = rateLimit("draft_" + ip, 10, 60000);\n        if (!allowed) {\n            return NextResponse.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });\n        }\n\n        const body = await req.json();');
+const insertBlock = '// FIX 7: Validate Payload Schema\n        const reqValidation = requestSchema.safeParse(payload);\n        if (!reqValidation.success) {\n            return NextResponse.json({ \n                error: "Validation failed", \n                details: reqValidation.error.format() \n            }, { status: 400 });\n        }\n\n        // Insert Request';
+c = c.replace('// Insert Request', insertBlock);
+fs.writeFileSync(p, c, 'utf8');
+console.log('Draft updated fixed');

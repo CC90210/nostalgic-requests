@@ -1,12 +1,12 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, effect, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { ReactNode, useEffect } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ConnectionStatus from "@/components/ui/ConnectionStatus";
+import { useAuth } from "@/lib/auth-context";
 import {
   LayoutDashboard,
   PlusCircle,
@@ -48,7 +48,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     await signOut();
     localStorage.clear();
     sessionStorage.clear();
-    window.location.href = "/";
+    window.location.href = "/"; // Redirect to homepage instead of login
   };
 
   const displayName = user?.user_metadata?.dj_name || user?.user_metadata?.full_name || profile?.dj_name || user?.email?.split("@")[0] || "DJ";
@@ -66,28 +66,134 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] flex">
-      <aside className="w-64 bg-[#0F0F10] border-r border-[#2D2D2D] hidden md-flex flex-col">
-        <div classNam��"p-6 border-b border-[#2D2D2D]">
+      {/* Sidebar */}
+      <aside className="w-64 bg-[#0F0F10] border-r border-[#2D2D2D] hidden md:flex flex-col">
+        {/* Logo */}
+        <div className="p-6 border-b border-[#2D2D2D]">
           <Link href="/dashboard" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg shadow-purple-500/20">
-              <Image src="/logo.png" alt="Nostalgic Requests" width='{40}' height={40}' className="w-full h-full object-cover" />
+              <Image src="/logo.png" alt="Nostalgic Requests" width={40} height={40} className="w-full h-full object-cover" />
             </div>
             <div>
-              <h1 classNam��ѕ�еᰁ���е���������Ʌ����еѼ�ȁ�ɽ�������������Ѽ������������������ѕ�Ёѕ�е�Ʌ����ɕ�Ј�(����������������9��х����(�����������������(����������������������9��S�'FW�B�w&��SFW�Bׇ2#�D�&WVW7G3�����F�c���Ɩ����F�cࠢ�F�b6�74��S�'�B&�&FW"�"�&�&FW"ղ3$C$C$E�#��Ɩ�
-�Y�H��\���\���][��Ȉ�\�Ә[e="block bg-[#1A1A12] hover:bg-[#252526] rounded-xl p-3 transition-colors">
-            <div className="flex items-center gap-3">
-              <div classNam��ܴ������������Ʌ����еѼ��ȁ�ɽ�������������Ѽ����������ɽչ�������������ѕ�̵���ѕȁ���ѥ�䵍��ѕȁ�ٕə��ܵ�����������͡ɥ������(������������������ɽ����%��������(������������������񥵜��Ɍ���ɽ����%����􁅱��Aɽ�����������9����ܵ�ձ�����ձ�������е��ٕȈ���(������������������耠(��������������������͌������9����ܴԁ��ԁѕ�еݡ�є����(������������������(��������������𽑥��(���������������؁�����9���􉵥��ܴ���(������������������������9��S�'FW�B�v��FRf��B��VF�V�G'V�6FR#�F�7����W�����6�74��S�'FW�B�w&��SFW�Bׇ2G'V�6FR#�F�7��V���������F�c���F�c���Ɩ����F�cࠢ��b6�74��S�&f�W���B76Rג�#���d�FV�2�����FVҒ����6��7B�47F�fR�F���R����FV��&Vc��6��7B�6����FV��6�㰠�&WGW&����Ɩ氢�W�׶�FV��&VgТ�&Vc׶�FV��&VgТ6�74��S׶f�W��FV�2�6V�FW"v�2��B��2&�V�FVB׆�G&�6�F������w��47F�fP��&&r�W'�R�c�#FW�B�W'�R�C&�&FW"&�&FW"�W'�R�S�3 ��'FW�B�w&��C��fW#�FW�B�v��FR��fW#�&rղ3%� ��Т�Ė6��6�74��OH��MHMH�ς��[��\�Ә[YOH��۝[YY][H���][K�X�[O��[����[�ς�
-NJ_B�ۘ]����]��\�Ә[e=�M�ܙ\�]�ܙ\�V�̑��H���[��Y�H�Ȃ��\�Ә[YOH��Y�[�^][\�X�[�\��\L�MKL���[�Y^^Yܘ^KMݙ\��^\\�KMݙ\����\\�KML�L�[��][ۋX[����^\��[[���\�Ә[YOH��MHMH�ς��[��\�Ә[e="font-medium">Back to Website</span>
-          </LLink>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                Nostalgic
+              </h1>
+              <p className="text-gray-500 text-xs">DJ Requests</p>
+            </div>
+          </Link>
         </div>
 
+        {/* DJ Profile Card */}
+        <div className="p-4 border-b border-[#2D2D2D]">
+          <Link href="/dashboard/settings" className="block bg-[#1A1A1B] hover:bg-[#252526] rounded-xl p-3 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                {profileImage ? (
+                  <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <Disc className="w-5 h-5 text-white" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-white font-medium truncate">{displayName}</p>
+                <p className="text-gray-500 text-xs truncate">{displayEmail}</p>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 p-4 space-y-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
+                  ? "bg-purple-600/20 text-purple-400 border border-purple-500/30"
+                  : "text-gray-400 hover:text-white hover:bg-[#1A1A1B]"
+                  }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Back to Website Link */}
+        <div className="p-4 border-t border-[#2D2D2D]">
+          <Link
+            href="/"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 transition-all"
+          >
+            <ExternalLink className="w-5 h-5" />
+            <span className="font-medium">Back to Website</span>
+          </Link>
+        </div>
+
+        {/* Sign Out */}
         <div className="p-4 border-t border-[#2D2D2D]">
           <button
             onClick={handleSignOut}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
           >
             <LogOut className="w-5 h-5" />
-            <span classNam�􉙽�е����մ��M����=��������(�������������ѽ��(��������𽑥��(�������ͥ���((�������؁�����9���􉵐顥�������ᕐ�ѽ�������д��ɥ��д�����l�����t���ɑ�ȵ����ɑ�ȵl����t���Ё�����(���������؁�����9���􉙱����ѕ�̵���ѕȁ���ѥ�䵉��ݕ����(�����������؁�����9���􉙱����ѕ�̵���ѕȁ����Ȉ�(�������������؁�����9�����w"ӂ�ӂ&�V�FVB��r�fW&f��rֆ�FFV�&r�&�6�&�&FW"&�&FW"�v��FR�#�Ė�vR7&3�"���v���r"�C�$��v�"v�GF��w�3'�r�V�v�C׳3'�r6�74��S�'r�gV����gV���&�V7B�6�fW""����F�c��7�6�74��OH��۝X��^]�]H�[��]HX^]�V�L�H���\�^S�[Y_O��[����]���]��\�Ә[e="flex gap-1">
+            <span className="font-medium">Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-[#0F0F10] border-b border-[#2D2D2D] p-4 z-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-black border border-white/10">
+              <Image src="/logo.png" alt="Logo" width={32} height={32} className="w-full h-full object-cover" />
+            </div>
+            <span className="font-bold text-white truncate max-w-[120px]">{displayName}</span>
+          </div>
+          <div className="flex gap-1">
+            {/* Home button to main website */}
             <Link
               href="/"
-              classNam����ȁɽչ�������ѕ�е�Ʌ�������ٕ�鉜�����������������ٕ��ѕ�е������������Ʌ�ͥѥ�������(��������������ѥѱ��	����Ѽ�]��ͥє�(�������������(���������������!���������9����ܴԁ��Ԉ���(�������������1����(����������������%ѕ�̹ͱ�������Ф�������ѕ�������(������������������Ё%�����ѕ�������(������������������Ё���ѥٔ����ѡ��������ѕ���ɕ��(��������������ɕ��ɸ��(�����������������1���(������������������������ѕ���ɕ��(�������������������ɕ����ѕ���ɕ��(�����������������������9�������ȁɽչ��������Ʌ�ͥѥ��������쁥��ѥٔ���������������������ѕ�е������������耉ѕ�е�Ʌ�������ٕ�鉜�l�����t�(���������������������(�����������������(�������������������%���������9����ܴԁ��Ԉ���(�����������������1����(����������������(���������������(�������������11���(���������������ɕ�􈽑�͡���ɐ�͕�ѥ��̈(�������������������9�������ȁɽչ��������Ʌ�ͥѥ�����������ѡ�������􀈽��͡���ɐ�͕�ѥ��̈���������������������ѕ�е������������耉ѕ�е�Ʌ�������ٕ�鉜�l������t�(�����������������(�������������(���������������M��ѥ��́�����9����ܴԁ��Ԉ���(�������������1����(����������𽑥��(��������𽑥��(������𽑥��((������񵅥�������9��S�&f�W���B�b�C��B��fW&f��r�WF�#��W'&�$&�V�F'���6���V7F���7FGW2���6���G&V�Т��W'&�$&�V�F'����������F�c�����
+              className="p-2 rounded-lg text-gray-400 hover:bg-purple-500/20 hover:text-purple-400 transition-all"
+              title="Back to Website"
+            >
+              <Home className="w-5 h-5" />
+            </Link>
+            {navItems.slice(0, 4).map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`p-2 rounded-lg transition-all ${isActive ? "bg-purple-600/20 text-purple-400" : "text-gray-400 hover:bg-[#1A1A1B]"
+                    }`}
+                >
+                  <Icon className="w-5 h-5" />
+                </Link>
+              );
+            })}
+            <Link
+              href="/dashboard/settings"
+              className={`p-2 rounded-lg transition-all ${pathname === "/dashboard/settings" ? "bg-purple-600/20 text-purple-400" : "text-gray-400 hover:bg-[#1A1A1B]"
+                }`}
+            >
+              <Settings className="w-5 h-5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main */}
+      <main className="flex-1 mt-16 md:mt-0 overflow-auto">
+        <ErrorBoundary><ConnectionStatus />{children}</ErrorBoundary>
+      </main>
+    </div>
+  );
+}

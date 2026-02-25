@@ -11,7 +11,7 @@ const supabase = createClient(
     { auth: { persistSession: false } }
 );
 
-// FIX 7: Input Validation Schema
+// Input Validation Schema
 const requestSchema = z.object({
     song_title: z.string().min(1).max(200).trim(),
     song_artist: z.string().min(1).max(200).trim(),
@@ -22,7 +22,6 @@ const requestSchema = z.object({
     amount_paid: z.number().positive().max(1000),
 });
 
-// Input Validation Schema
 const draftSchema = z.object({
     eventId: z.string().uuid(),
     songs: z.array(z.object({
@@ -44,7 +43,7 @@ const draftSchema = z.object({
 export async function POST(req: NextRequest) {
     try {
         const ip = req.headers.get("x-forwarded-for") || "unknown";
-        const { allowed } = rateLimit(`draft_${ip}`, 10, 60000);
+        const { allowed } = rateLimit("draft_" + ip, 10, 60000);
         if (!allowed) {
             return NextResponse.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });
         }
