@@ -17,7 +17,7 @@ interface VerifyEmailProps {
   confirmationLink: string;
 }
 
-export default function VerifyEmail({ confirmationLink = "https://nostalgic.com/verify" }: VerifyEmailProps) {
+export default function VerifyEmail({ confirmationLink = "https://nostalgicrequests.com/verify" }: VerifyEmailProps) {
   return (
     <Html>
       <Head />
