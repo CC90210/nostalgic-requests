@@ -1,26 +1,51 @@
 'use client';
 
-import { effect, state, useE™™™Xİ\ÙTİ]HHœ›ÛH	Ü™XXİ	ÎÂš[\ÜÈÜ™X]PÛY[Hœ›ÛH	Ğİ\X˜\ÙKÜİ\X˜\ÙKZœÉÎÂš[\ÜÈÚYšKÚYšSÙ™‹ÚXÚĞÚ\˜ÛLˆHœ›ÛH	ÛXÚYK\™XXİ	ÎÂ‚™^ÜY˜][[˜İ[ÛˆÛÛ›™Xİ[Û”İ]\Ê
-HÂˆÛÛœİÚ\ÓÛ›[™KÙ]\ÓÛ›[™WHH\ÙTİ]JYJNÂˆÛÛœİÜÚİĞÛÛ›™XİYÙ]ÚİĞÛÛ›™XİYHH\ÙTİ]J˜[ÙJNÂ‚ˆ\ÙQY™™Xİ
+import { useEffect, useState } from 'react';
+import { Wifi, WifiOff, CheckCircle2 } from 'lucide-react';
 
+export default function ConnectionStatus() {
+  const [isOnline, setIsOnline] = useState(true);
+  const [showConnected, setShowConnected] = useState(false);
 
-HOˆÂˆÛÛœİ[™SÛ›[™HH
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-HOˆÂˆÙ]\ÓÛ›[™JYJNÂˆÙ]ÚİĞÛÛ›™XİY
-YJNÂˆÙ][Y[İ]
+    const handleOnline = () => {
+      setIsOnline(true);
+      setShowConnected(true);
+      setTimeout(() => setShowConnected(false), 3000);
+    };
+    const handleOffline = () => setIsOnline(false);
 
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    // Set initial state
+    setIsOnline(navigator.onLine);
 
-HOˆÙ]ÚİĞÛÛ›™XİY
-˜[ÙJKÌ
-NÂˆNÂˆÛÛœİ[™SÙ™›[™HH
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
-HOˆÙ]\ÓÛ›[™J˜[ÙJNÂ‚ˆÚ[™İË˜Y]™[\İ[™\Š	ÛÛ›[™IË[™SÛ›[™JNÂˆÚ[™İË˜Y]™[\İ[™\Š	ÛÙ™›[™IË[™SÙ™›[™JNÂ‚ˆ™]\›ˆ
+  if (!isOnline) {
+    return (
+      <div className="bg-red-500/90 backdrop-blur-sm text-white px-4 py-1.5 text-sm flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top-4">
+        <WifiOff className="w-4 h-4" />
+        <span className="font-medium">Connection lost  requests may be delayed. Reconnecting...</span>
+      </div>
+    );
+  }
 
-HOˆÂˆÚ[™İËœ™[[İ™Q]™[\İ[™\Š	ÛÛ›[™IË[™SÛ›[™JNÂˆÚ[™İËœ™[[İ™Q]™[\İ[™\Š	ÛÙ™›[™IË[™SÙ™›[™JNÂˆNÂˆK×JNÂ‚ˆYˆ
-Z\ÓÛ›[™JHÂˆ™]\›ˆ
-ˆ]ˆÛ\ÜÓ˜[YOH˜™Ë\™YMLÎL˜XÚÙ›ÜX›\‹\ÛH^]Ú]HMKLKH^\ÛH™^][\ËXÙ[\ˆ\İYKXÙ[\ˆØ\Lˆ[š[X]KZ[ˆ˜YKZ[ˆÛYKZ[‹Yœ›ÛK]ÜM‚ˆÚYšSÙ™ˆÛ\ÜÓ˜[YOHËMMˆÏ‚ˆÜ[ˆÛ\ÜÓ˜[YOH™›Û[YY][HÛÛ›™Xİ[ÛˆÜİ8 %™\]Y\İÈX^H™H[^YYˆ™XÛÛ›™Xİ[™Ë‹‹ÜÜ[‚ˆÙ]‚ˆ
-NÂˆB‚ˆYˆ
-ÚİĞÛÛ›™XİY
-HÂˆ™]\›ˆ
-ˆ]ˆÛ\ÜÓ˜[YOH˜™ËYÜ™Y[‹MLÎL˜XÚÙ›ÜX›\‹\ÛH^]Ú]HMKLKH^\ÛH™^][\ËXÙ[\ˆ\İYKXÙ[\ˆØ\Lˆ[š[X]KZ[ˆ˜YKZ[ˆšYK[İ]\˜][Û‹LÌØZ]LŒ‚ˆÚXÚĞÚ\˜ÛLˆÛ\ÜÓ˜[YOHËMMˆÏ‚ˆÜ[ˆÛ\ÜÓ˜[YOH™›Û[YY][HÛÛ›™XİYÜÜ[‚ˆÙ]‚ˆ
-NÂˆB‚ˆ™]\›ˆ[ÂŸ
+  if (showConnected) {
+    return (
+      <div className="bg-green-500/90 backdrop-blur-sm text-white px-4 py-1.5 text-sm flex items-center justify-center gap-2 animate-in fade-in duration-300">
+        <CheckCircle2 className="w-4 h-4" />
+        <span className="font-medium">Connected</span>
+      </div>
+    );
+  }
+
+  return null;
+}
