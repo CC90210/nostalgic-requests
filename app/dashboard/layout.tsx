@@ -1,10 +1,12 @@
-ï»¿"use client";
+"use client";
 
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect } from "react";
+import { ReactNode, effect, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import ConnectionStatus from "@/components/ui/ConnectionStatus";
 import {
   LayoutDashboard,
   PlusCircle,
@@ -46,7 +48,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     await signOut();
     localStorage.clear();
     sessionStorage.clear();
-    window.location.href = "/"; // Redirect to homepage instead of login
+    window.location.href = "/";
   };
 
   const displayName = user?.user_metadata?.dj_name || user?.user_metadata?.full_name || profile?.dj_name || user?.email?.split("@")[0] || "DJ";
@@ -64,134 +66,28 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-[#0F0F10] border-r border-[#2D2D2D] hidden md:flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-[#2D2D2D]">
+      <aside className="w-64 bg-[#0F0F10] border-r border-[#2D2D2D] hidden md-flex flex-col">
+        <div classNam”ô"p-6 border-b border-[#2D2D2D]">
           <Link href="/dashboard" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg shadow-purple-500/20">
-              <Image src="/logo.png" alt="Nostalgic Requests" width={40} height={40} className="w-full h-full object-cover" />
+              <Image src="/logo.png" alt="Nostalgic Requests" width='{40}' height={40}' className="w-full h-full object-cover" />
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-                Nostalgic
-              </h1>
-              <p className="text-gray-500 text-xs">DJ Requests</p>
-            </div>
-          </Link>
-        </div>
-
-        {/* DJ Profile Card */}
-        <div className="p-4 border-b border-[#2D2D2D]">
-          <Link href="/dashboard/settings" className="block bg-[#1A1A1B] hover:bg-[#252526] rounded-xl p-3 transition-colors">
+              <h1 classNam”ô‰Ñ•áĞµá°™½¹Ğµ‰½±‰œµÉ…‘¥•¹ĞµÑ¼µÈ™É½´µÁÕÉÁ±”´ĞÀÀÑ¼µÁ¥¹¬´ÔÀÀ‰œµ±¥ÀµÑ•áĞÑ•áĞµÑÉ…¹ÍÁ…É•¹Ğˆø(€€€€€€€€€€€€€€€9½ÍÑ…±¥Œ(€€€€€€€€€€€€€€ğ½ Äø(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…¶SÒ'FW‡BÖw&’ÓSFW‡B×‡2#äD¢&WVW7G3Â÷à¢ÂöF—cà¢ÂôÆ–æ³à¢ÂöF—cà ¢ÆF—b6Æ74æÖSÒ'ÓB&÷&FW"Ö"²&÷&FW"Õ²3$C$C$EÒ#à¢ÄÆ–æ²
+™YH‹Ù\Ú›Ø\™ÜÙ][™ÜÈˆÛ\ÜÓ˜[e="block bg-[#1A1A12] hover:bg-[#252526] rounded-xl p-3 transition-colors">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
-                {profileImage ? (
-                  <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <Disc className="w-5 h-5 text-white" />
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="text-white font-medium truncate">{displayName}</p>
-                <p className="text-gray-500 text-xs truncate">{displayEmail}</p>
-              </div>
-            </div>
-          </Link>
+              <div classNam”ô‰Ü´ÄÀ ´ÄÀ‰œµÉ…‘¥•¹ĞµÑ¼µ‰È™É½´µÁÕÉÁ±”´ØÀÀÑ¼µÁ¥¹¬´ØÀÀÉ½Õ¹‘•µ±œ™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ•¹Ñ•È½Ù•É™±½Üµ¡¥‘‘•¸™±•àµÍ¡É¥¹¬´Àˆø(€€€€€€€€€€€€€€€íÁÉ½™¥±•%µ…”€ü€ (€€€€€€€€€€€€€€€€€€ñ¥µœÍÉŒõíÁÉ½™¥±•%µ…•ô…±Ğô‰AÉ½™¥±”ˆ±…ÍÍ9…µ”ô‰Üµ™Õ±° µ™Õ±°½‰©•Ğµ½Ù•Èˆ€¼ø(€€€€€€€€€€€€€€€€¤€è€ (€€€€€€€€€€€€€€€€€€ñ¥ÍŒ±…ÍÍ9…µ”ô‰Ü´Ô ´ÔÑ•áĞµİ¡¥Ñ”ˆ€¼ø(€€€€€€€€€€€€€€€€¥ô(€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µ¥¸µÜ´Àˆø(€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…¶SÒ'FW‡B×v†—FRföçBÖÖVF—VÒG'Væ6FR#ç¶F—7Æ”æÖWÓÂ÷à¢Ç6Æ74æÖSÒ'FW‡BÖw&’ÓSFW‡B×‡2G'Væ6FR#ç¶F—7Æ”VÖ–ÇÓÂ÷à¢ÂöF—cà¢ÂöF—cà¢ÂôÆ–æ³à¢ÂöF—cà ¢Ææb6Æ74æÖSÒ&fÆW‚ÓÓB76R×’Ó#à¢¶æd—FV×2æÖ‚†—FVÒ’Óâ°¢6öç7B—47F—fRÒF†æÖRÓÓÒ—FVÒæ‡&Vc°¢6öç7B–6öâÒ—FVÒæ–6öã° ¢&WGW&â€¢ÄÆ–æ°¢¶W“×¶—FVÒæ‡&VgĞ¢‡&Vc×¶—FVÒæ‡&VgĞ¢6Æ74æÖS×¶fÆW‚—FV×2Ö6VçFW"vÓ2‚ÓB’Ó2&÷VæFVB×†ÂG&ç6—F–öâÖÆÂw²—47F—fP¢ò&&r×W'ÆRÓcó#FW‡B×W'ÆRÓC&÷&FW"&÷&FW"×W'ÆRÓSó3 ¢¢'FW‡BÖw&’ÓC†÷fW#§FW‡B×v†—FR†÷fW#¦&rÕ²3%Ò ¢ÖĞ¢à¢Ä–6öâ6Æ74æÙOHËMHMHˆÏ‚ˆÜ[ˆÛ\ÜÓ˜[YOH™›Û[YY][HÚ][K›X™[OÜÜ[‚ˆÓ[šÏ‚ˆ
+NÂˆJ_BˆÛ˜]‚‚ˆ]ˆÛ\ÜÓ˜[e=œM›Ü™\‹]›Ü™\‹VÈÌ‘‘‘H‚ˆ[šÂˆ™YH‹È‚ˆÛ\ÜÓ˜[YOHËY[›^][\ËXÙ[\ˆØ\LÈMKLÈ›İ[™Y^^YÜ˜^KMİ™\^\\œKMİ™\˜™Ë\\œKMLÌL˜[œÚ][Û‹X[‚ˆ‚ˆ^\›˜[[šÈÛ\ÜÓ˜[YOHËMHMHˆÏ‚ˆÜ[ˆÛ\ÜÓ˜[e="font-medium">Back to Website</span>
+          </LLink>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 p-4 space-y-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
-                  ? "bg-purple-600/20 text-purple-400 border border-purple-500/30"
-                  : "text-gray-400 hover:text-white hover:bg-[#1A1A1B]"
-                  }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Back to Website Link */}
-        <div className="p-4 border-t border-[#2D2D2D]">
-          <Link
-            href="/"
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 transition-all"
-          >
-            <ExternalLink className="w-5 h-5" />
-            <span className="font-medium">Back to Website</span>
-          </Link>
-        </div>
-
-        {/* Sign Out */}
         <div className="p-4 border-t border-[#2D2D2D]">
           <button
             onClick={handleSignOut}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
           >
             <LogOut className="w-5 h-5" />
-            <span className="font-medium">Sign Out</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 bg-[#0F0F10] border-b border-[#2D2D2D] p-4 z-50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg overflow-hidden bg-black border border-white/10">
-              <Image src="/logo.png" alt="Logo" width={32} height={32} className="w-full h-full object-cover" />
-            </div>
-            <span className="font-bold text-white truncate max-w-[120px]">{displayName}</span>
-          </div>
-          <div className="flex gap-1">
-            {/* Home button to main website */}
+            <span classNam”ô‰™½¹Ğµµ•‘¥Õ´ˆùM¥¸=ÕĞğ½ÍÁ…¸ø(€€€€€€€€€€ğ½‰ÕÑÑ½¸ø(€€€€€€€€ğ½‘¥Øø(€€€€€€ğ½…Í¥‘”ø((€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µé¡¥‘‘•¸™¥á•Ñ½À´À±•™Ğ´ÀÉ¥¡Ğ´À‰œµlŒÁÁÄÁt‰½É‘•Èµˆ‰½É‘•ÈµlŒÉÉÉtÀ´Ğè´ÔÀˆø(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•Ñİ••¸ˆø(€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´Èˆø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô¢w"Ó‚‚Ó‚&÷VæFVBÖÆr÷fW&fÆ÷rÖ†–FFVâ&rÖ&Æ6²&÷&FW"&÷&FW"×v†—FRó#à¢Ä–ÖvR7&3Ò"öÆövòçær"ÇCÒ$Æövò"v–GFƒÒw³3'Òr†V–v‡C×³3'Òr6Æ74æÖSÒ'rÖgVÆÂ‚ÖgVÆÂö&¦V7BÖ6÷fW""óà¢ÂöF—cà¢Ç7â6Æ74æÙOH™›ÛX›Û^]Ú]H[˜Ø]HX^]ËVÌLŒHÙ\Ü^S˜[Y_OÜÜ[‚ˆÙ]‚ˆ]ˆÛ\ÜÓ˜[e="flex gap-1">
             <Link
               href="/"
-              className="p-2 rounded-lg text-gray-400 hover:bg-purple-500/20 hover:text-purple-400 transition-all"
-              title="Back to Website"
-            >
-              <Home className="w-5 h-5" />
-            </Link>
-            {navItems.slice(0, 4).map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`p-2 rounded-lg transition-all ${isActive ? "bg-purple-600/20 text-purple-400" : "text-gray-400 hover:bg-[#1A1A1B]"
-                    }`}
-                >
-                  <Icon className="w-5 h-5" />
-                </Link>
-              );
-            })}
-            <Link
-              href="/dashboard/settings"
-              className={`p-2 rounded-lg transition-all ${pathname === "/dashboard/settings" ? "bg-purple-600/20 text-purple-400" : "text-gray-400 hover:bg-[#1A1A1B]"
-                }`}
-            >
-              <Settings className="w-5 h-5" />
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Main */}
-      <main className="flex-1 mt-16 md:mt-0 overflow-auto">
-        {children}
-      </main>
-    </div>
-  );
-}
+              classNam”ô‰À´ÈÉ½Õ¹‘•µ±œÑ•áĞµÉ…ä´ĞÀÀ¡½Ù•Èé‰œµÁÕÉÁ±”´ÔÀÀ¼ÈÀ¡½Ù•ÈéÑ•áĞµÁÕÉÁ±”´ĞÀÀÑÉ…¹Í¥Ñ¥½¸µ…±°ˆ(€€€€€€€€€€€€€Ñ¥Ñ±”ô‰	…¬Ñ¼]•‰Í¥Ñ”ˆ(€€€€€€€€€€€€ø(€€€€€€€€€€€€€€ñ!½µ”±…ÍÍ9…µ”ô‰Ü´Ô ´Ôˆ€¼ø(€€€€€€€€€€€€ğ½1¥¹¬ø(€€€€€€€€€€€í¹…Ù%Ñ•µÌ¹Í±¥” À°€Ğ¤¹µ…À ¡¥Ñ•´¤€ôøì(€€€€€€€€€€€€€½¹ÍĞ%½¸€ô¥Ñ•´¹¥½¸ì(€€€€€€€€€€€€€½¹ÍĞ¥ÍÑ¥Ù”€ôÁ…Ñ¡¹…µ”€ôôô¥Ñ•´¹¡É•˜ì(€€€€€€€€€€€€€É•ÑÕÉ¸€ (€€€€€€€€€€€€€€€€ñ1¥¹¬(€€€€€€€€€€€€€€€€€­•äõí¥Ñ•´¹¡É•™ô(€€€€€€€€€€€€€€€€€¡É•˜õí¥Ñ•´¹¡É•™ô(€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”õíÀ´ÈÉ½Õ¹‘•µ±œÑÉ…¹Í¥Ñ¥½¸µ…±°€ì¥ÍÑ¥Ù”€ü€‰‰œµÁÕÉÁ±”´ØÀÀ¼ÈÀÑ•áĞµÁÕÉÁ±”´ĞÀÀˆ€è€‰Ñ•áĞµÉ…ä´ĞÀÀ¡½Ù•Èé‰œµlŒÅÅÄÉtˆ(€€€€€€€€€€€€€€€€€õô(€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€ñ%½¸±…ÍÍ9…µ”ô‰Ü´Ô ´Ôˆ€¼ø(€€€€€€€€€€€€€€€€ğ½1¥¹¬ø(€€€€€€€€€€€€€€¤ì(€€€€€€€€€€€ô¥ô(€€€€€€€€€€€€ñ11¥¹¬(€€€€€€€€€€€€€¡É•˜ôˆ½‘…Í¡‰½…É½Í•ÑÑ¥¹Ìˆ(€€€€€€€€€€€€€±…ÍÍ9…µ”õíÀ´ÈÉ½Õ¹‘•µ±œÑÉ…¹Í¥Ñ¥½¸µ…±°€‘íÁ…Ñ¡¹…µ”€ôôô€ˆ½‘…Í¡‰½…É½Í•ÑÑ¥¹Ìˆ€ü€‰‰œµÁÕÉÁ±”´ØÀÀ¼ÈÀÑ•áĞµÁÕÉÁ±”´ĞÀÀˆ€è€‰Ñ•áĞµÉ…ä´ĞÀÀ¡½Ù•Èé‰œµlŒÅÄÄÄÉtˆ(€€€€€€€€€€€€€õô(€€€€€€€€€€€€ø(€€€€€€€€€€€€€€ñM•ÑÑ¥¹Ì±…ÍÍ9…µ”ô‰Ü´Ô ´Ôˆ€¼ø(€€€€€€€€€€€€ğ½1¥¹¬ø(€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€ğ½‘¥Øø(€€€€€€ğ½‘¥Øø((€€€€€€ñµ…¥¸±…ÍÍ9…¶SÒ&fÆW‚Ó×BÓbÖC¦×BÓ÷fW&fÆ÷rÖWFò#à¢ÄW'&÷$&÷VæF'“à¢Ä6öææV7F–öå7FGW2óà¢¶6†–ÆG&VçĞ¢ÂôW'&÷$&÷VæF'“à¢ÂöÖ–ãà¢ÂöF—cà¢“°§Ğ

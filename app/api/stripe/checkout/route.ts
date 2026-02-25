@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { rateLimit } from "@/lib/rate-limit";
+import { isPlatformOwner } from "@/lib/platform";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,7 +11,6 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-// Input Validation Schema
 const checkoutSchema = z.object({
   requestId: z.string().uuid(),
   eventSlug: z.string().min(1).max(100),
@@ -18,9 +19,14 @@ const checkoutSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || "unknown";
+    const { allowed } = rateLimit(`checkout_${ip}`, 5, 60000);
+    if (!allowed) {
+      return NextResponse.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });
+    }
+
     const body = await request.json();
 
-    // 1. Validate Input
     const validation = checkoutSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json({ error: "Invalid request data" }, { status: 400 });
@@ -29,7 +35,6 @@ export async function POST(request: NextRequest) {
     const { requestId, eventSlug, requesterEmail } = validation.data;
     const stripe = getStripe();
 
-    // 2. Fetch Draft Request
     const { data: reqData, error: reqError } = await supabase
       .from("requests")
       .select("*")
@@ -41,7 +46,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
 
-    // 3. Fetch Event -> DJ
     const { data: eventData } = await supabase
       .from("events")
       .select("user_id")
@@ -49,24 +53,21 @@ export async function POST(request: NextRequest) {
       .single();
 
     let destinationAccount = null;
-    let isPlatformOwner = false;
+    let isPlatformOwnerCheck = false;
     let djEmail = "";
 
     if (eventData?.user_id) {
-      // A. AUTH CHECK (Source of Truth)
       const { data: userData } = await supabase.auth.admin.getUserById(eventData.user_id);
 
       if (userData?.user?.email) {
         djEmail = userData.user.email;
-        // CHECK PLATFORM OWNER BY EMAIL
-        if (djEmail.toLowerCase().trim() === "konamak@icloud.com") {
-          isPlatformOwner = true;
-          destinationAccount = "PLATFORM_OWNER"; // Valid Bypass
+        if (isPlatformOwner(djEmail)) {
+          isPlatformOwnerCheck = true;
+          destinationAccount = "PLATFORM_OWNER";
         }
       }
 
-      // B. STRIPE PROFILE CHECK (If not owner)
-      if (!isPlatformOwner) {
+      if (!isPlatformOwnerCheck) {
         const { data: profile } = await supabase
           .from("dj_profiles")
           .select("stripe_account_id, stripe_onboarding_complete")
@@ -75,19 +76,19 @@ export async function POST(request: NextRequest) {
 
         if (profile?.stripe_account_id && profile?.stripe_onboarding_complete) {
           destinationAccount = profile.stripe_account_id;
+        } else {
+          return NextResponse.json(
+            { error: "This DJ hasn't set up payments yet. Please ask them to complete setup." },
+            { status: 400 }
+          );
         }
       }
     }
 
-    // SAFETY CHECK
     if (!destinationAccount) {
-      return NextResponse.json(
-        { error: "Payment setup incomplete for this event." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Payment setup incomplete for this event." }, { status: 400 });
     }
 
-    // 4. Create Stripe Session
     const amount = reqData.amount_paid;
     let description = "Song Request";
     if (reqData.has_priority) description += " + Priority";
@@ -120,13 +121,12 @@ export async function POST(request: NextRequest) {
       customer_email: requesterEmail || reqData.requester_email || undefined,
     };
 
-    // TRANSFER LOGIC
-    if (!isPlatformOwner) {
+    if (!isPlatformOwnerCheck) {
       sessionParams.payment_intent_data = {
         transfer_data: {
           destination: destinationAccount,
         },
-        application_fee_amount: Math.round(amount * 100 * 0.05), // 5% Fee
+        application_fee_amount: Math.round(amount * 100 * 0.05),
       };
     }
 

@@ -1,0 +1,20 @@
+const fs = require('fs');
+const file = 'app/api/stripe/checkout/route.ts';
+let c = fs.readFileSync(file, 'utf8');
+
+c = c.replace('import { z } from "zod";', 'import { z } from "zod";\nimport { rateLimit } from "@/lib/rate-limit";\nimport { isPlatformOwner } from "@/lib/platform";');
+
+c = c.replace(/export async function POST\(request: NextRequest\) \{\r?\n\s+try \{\r?\n\s+const body = await request.json\(\);/, 'export async function POST(request: NextRequest) {\n  try {\n    const ip = request.headers.get("x-forwarded-for") || "unknown";\n    const { allowed } = rateLimit(checkout_, 5, 60000);\n    if (!allowed) {\n      return NextResponse.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });\n    }\n\n    const body = await request.json();');
+
+c = c.replace('if (djEmail.toLowerCase().trim() === "konamak@icloud.com") {', 'if (isPlatformOwner(djEmail)) {');
+
+const str1 = '      if (!isPlatformOwner) {\r\n        const { data: profile } = await supabase\r\n          .from("dj_profiles")\r\n          .select("stripe_account_id, stripe_onboarding_complete")\r\n          .eq("user_id", eventData.user_id)\r\n          .single();\r\n\r\n        if (profile?.stripe_account_id && profile?.stripe_onboarding_complete) {\r\n          destinationAccount = profile.stripe_account_id;\r\n        }\r\n      }';
+const str2 = str1.replace(/\r\n/g, '\n');
+
+const repl1 = '      if (!isPlatformOwner) {\n        const { data: profile } = await supabase\n          .from("dj_profiles")\n          .select("stripe_account_id, stripe_onboarding_complete")\n          .eq("user_id", eventData.user_id)\n          .single();\n\n        if (profile?.stripe_account_id && profile?.stripe_onboarding_complete) {\n          destinationAccount = profile.stripe_account_id;\n        } else {\n          return NextResponse.json(\n            { error: "This DJ hasn\\'t set up payments yet. Please ask them to complete setup." },\n            { status: 400 }\n          );\n        }\n      }';
+
+c = c.replace(str1, repl1);
+c = c.replace(str2, repl1);
+
+fs.writeFileSync(file, c);
+console.log('done modify');

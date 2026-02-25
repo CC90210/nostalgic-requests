@@ -127,7 +127,7 @@ export default function EventDetailsPage() {
   };
 
   // SUPER ADMIN OVERRIDE
-  const isPlatformOwner = user?.email?.toLowerCase() === "konamak@icloud.com";
+  const isPlatformOwner = checkPlatformOwner(user?.email);
   const hasPayouts = !!profile?.stripe_onboarding_complete || isPlatformOwner;
 
   return (

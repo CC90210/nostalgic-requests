@@ -2,13 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateTotal, PricingConfig, DEFAULT_PRICING } from "@/lib/pricing";
 import { z } from "zod";
+import { rateLimit } from "@/lib/rate-limit";
 
 // Use Service Role to Bypass RLS (for Public Event Check)
 const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL",
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } }
 );
+
+// FIX 7: Input Validation Schema
+const requestSchema = z.object({
+    song_title: z.string().min(1).max(200).trim(),
+    song_artist: z.string().min(1).max(200).trim(),
+    requester_name: z.string().min(1).max(100).trim(),
+    requester_phone: z.string().min(10).max(20).optional(),
+    requester_email: z.string().email().max(254).optional(),
+    event_id: z.string().uuid(),
+    amount_paid: z.number().positive().max(1000),
+});
 
 // Input Validation Schema
 const draftSchema = z.object({
@@ -24,13 +36,19 @@ const draftSchema = z.object({
         shoutout: z.boolean().optional(),
         guaranteedNext: z.boolean().optional(),
     }),
-    requesterName: z.string().max(100).optional().or(z.literal("")),
+    requesterName: z.string().max(100).optional().oq(z.literal("")),
     requesterPhone: z.string().max(50),
     requesterEmail: z.string().email().max(254).optional().or(z.literal("")),
 });
 
 export async function POST(req: NextRequest) {
     try {
+        const ip = req.headers.get("x-forwarded-for") || "unknown";
+        const { allowed } = rateLimit(`draft_${ip}`, 10, 60000);
+        if (!allowed) {
+            return NextResponse.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });
+        }
+
         const body = await req.json();
 
         // 1. Validate Input
@@ -94,6 +112,15 @@ export async function POST(req: NextRequest) {
             stripe_payment_id: null,
             created_at: new Date().toISOString()
         };
+
+        // FIX 7: Validate Payload Schema
+        const reqValidation = requestSchema.safeParse(payload);
+        if (!reqValidation.success) {
+            return NextResponse.json({ 
+                error: "Validation failed", 
+                details: reqValidation.error.format() 
+            }, { status: 400 });
+        }
 
         // Insert Request 
         const { data, error } = await supabase.from("requests").insert(payload).select().single();
