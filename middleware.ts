@@ -38,13 +38,13 @@ export async function middleware(request: NextRequest) {
   );
 
   // Refresh Session
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const { data: { session }, error } = await supabase.auth.getSession();
 
   const isProtected = request.nextUrl.pathname.startsWith("/dashboard") ||
     request.nextUrl.pathname.startsWith("/my-events");
 
   // IF TOKEN IS INVALID: FORCE LOGOUT & NUKE COOKIES
-  if ((!user || error) && isProtected) {
+  if ((!session || error) && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     const redirectResponse = NextResponse.redirect(url);
@@ -71,6 +71,7 @@ export async function middleware(request: NextRequest) {
   const window = 15 * 60 * 1000; // 15 minutes
 
   // This Map will reset on serverless function cold starts, but provides basic protection.
+  if (globalThis._requestCounts && globalThis._requestCounts.size > 10000) { globalThis._requestCounts.clear(); }
   if (!globalThis._requestCounts) {
     globalThis._requestCounts = new Map<string, { count: number; expires: number }>();
   }
