@@ -71,12 +71,12 @@ export async function middleware(request: NextRequest) {
   const window = 15 * 60 * 1000; // 15 minutes
 
   // This Map will reset on serverless function cold starts, but provides basic protection.
-  if (!global._requestCounts) {
-    global._requestCounts = new Map<string, { count: number; expires: number }>();
+  if (!globalThis._requestCounts) {
+    globalThis._requestCounts = new Map<string, { count: number; expires: number }>();
   }
 
   const now = Date.now();
-  const userData = global._requestCounts.get(ip);
+  const userData = globalThis._requestCounts.get(ip);
 
   if (userData && now < userData.expires) {
     userData.count++;
@@ -87,7 +87,7 @@ export async function middleware(request: NextRequest) {
       });
     }
   } else {
-    global._requestCounts.set(ip, { count: 1, expires: now + window });
+    globalThis._requestCounts.set(ip, { count: 1, expires: now + window });
   }
 
   // Security Headers

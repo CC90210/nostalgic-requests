@@ -48,7 +48,7 @@ export default function WelcomeEmail({ djName = "DJ" }: WelcomeEmailProps) {
               </Text>
               
               <Text className="text-gray-500 text-[16px] leading-[24px]">
-                We''re thrilled to have you onboard. Nostalgic Requests is designed to help you monetize your sets 
+                We're thrilled to have you onboard. Nostalgic Requests is designed to help you monetize your sets 
                 and engage your crowd like never before.
               </Text>
 
@@ -62,7 +62,7 @@ export default function WelcomeEmail({ djName = "DJ" }: WelcomeEmailProps) {
               </Section>
               
               <Text className="text-gray-500 text-[14px] leading-[24px]">
-                If the button above doesn''t work, copy and paste this link into your browser:
+                If the button above doesn't work, copy and paste this link into your browser:
                 <br />
                 <a href="https://nostalgicrequests.com/dashboard" className="text-[#EC4899] no-underline">
                   https://nostalgicrequests.com/dashboard

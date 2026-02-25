@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { notFound, useParams } from "next/navigation";
@@ -127,7 +127,7 @@ export default function EventDetailsPage() {
   };
 
   // SUPER ADMIN OVERRIDE
-  const isPlatformOwner = checkPlatformOwner(user?.email);
+  const isPlatformOwner = isPlatformOwner(user?.email);
   const hasPayouts = !!profile?.stripe_onboarding_complete || isPlatformOwner;
 
   return (
@@ -274,4 +274,5 @@ function StatCard({ icon, value, label, color }: { icon: React.ReactNode; value:
     </div>
   );
 }
+
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -144,7 +144,7 @@ export default function SettingsPage() {
   if (loading) return <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center"><Loader2 className="w-8 h-8 text-purple-500 animate-spin" /></div>;
   if (!user) return null;
 
-  const isPlatformOwner = checkPlatformOwner(user.email);
+  const isPlatformOwner = isPlatformOwner(user.email);
   const isStripeConnected = profile?.stripe_onboarding_complete || isPlatformOwner;
   const isNewDJ = !profile?.dj_name || profile.dj_name === "New DJ";
 
@@ -319,3 +319,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
