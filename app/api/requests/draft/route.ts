@@ -6,7 +6,7 @@ import { rateLimit } from "@/lib/rate-limit";
 
 // Use Service Role to Bypass RLS (for Public Event Check)
 const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL",
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } }
 );
@@ -36,7 +36,7 @@ const draftSchema = z.object({
         shoutout: z.boolean().optional(),
         guaranteedNext: z.boolean().optional(),
     }),
-    requesterName: z.string().max(100).optional().oq(z.literal("")),
+    requesterName: z.string().max(100).optional().or(z.literal("")),
     requesterPhone: z.string().max(50),
     requesterEmail: z.string().email().max(254).optional().or(z.literal("")),
 });
