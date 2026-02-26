@@ -1,15 +1,9 @@
-import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
-
-declare global {
-  var _requestCounts: Map<string, { count: number; expires: number }> | undefined;
-}
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+  let supabaseResponse = NextResponse.next({
+    request,
   });
 
   const supabase = createServerClient(
@@ -21,89 +15,52 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+          cookiesToSet.forEach(({ name, value }) => {
             request.cookies.set(name, value);
           });
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
+          supabaseResponse = NextResponse.next({
+            request,
           });
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
+            supabaseResponse.cookies.set(name, value, options);
           });
         },
       },
     }
   );
 
-  // Refresh Session
   const { data: { session }, error } = await supabase.auth.getSession();
 
-  const isProtected = request.nextUrl.pathname.startsWith("/dashboard") ||
-    request.nextUrl.pathname.startsWith("/my-events");
+  const isProtected = request.nextUrl.pathname.startsWith('/dashboard') ||
+    request.nextUrl.pathname.startsWith('/my-events');
 
-  // IF TOKEN IS INVALID: FORCE LOGOUT & NUKE COOKIES
   if ((!session || error) && isProtected) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = '/login';
     const redirectResponse = NextResponse.redirect(url);
-
-    // Clear all potential Supabase cookies to prevent loops
     const allCookies = request.cookies.getAll();
     allCookies.forEach(cookie => {
-      if (cookie.name.startsWith("sb-")) {
+      if (cookie.name.startsWith('sb-')) {
         redirectResponse.cookies.delete(cookie.name);
       }
     });
-    // Also delete generic ones just in case
-    redirectResponse.cookies.delete("sb-access-token");
-    redirectResponse.cookies.delete("sb-refresh-token");
-
+    redirectResponse.cookies.delete('sb-access-token');
+    redirectResponse.cookies.delete('sb-refresh-token');
     return redirectResponse;
   }
 
-  // Rate Limiting (Basic IP-based)
-  // Note: logic is usually handled by Vercel Firewall or Redis in production,
-  // but we implement a basic protection layer here.
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "127.0.0.1";
-  const limit = 100; // requests
-  const window = 15 * 60 * 1000; // 15 minutes
+  supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff');
+  supabaseResponse.headers.set('X-Frame-Options', 'DENY');
+  supabaseResponse.headers.set('X-XSS-Protection', '1; mode=block');
+  supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  supabaseResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  supabaseResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 
-  // This Map will reset on serverless function cold starts, but provides basic protection.
-  if (globalThis._requestCounts && globalThis._requestCounts.size > 10000) { globalThis._requestCounts.clear(); }
-  if (!globalThis._requestCounts) {
-    globalThis._requestCounts = new Map<string, { count: number; expires: number }>();
-  }
-
-  const now = Date.now();
-  const userData = globalThis._requestCounts.get(ip);
-
-  if (userData && now < userData.expires) {
-    userData.count++;
-    if (userData.count > limit) {
-      return new NextResponse("Too Many Requests", {
-        status: 429,
-        headers: { "Retry-After": Math.ceil((userData.expires - now) / 1000).toString() }
-      });
-    }
-  } else {
-    globalThis._requestCounts.set(ip, { count: 1, expires: now + window });
-  }
-
-  // Security Headers
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("X-XSS-Protection", "1; mode=block");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-
-  return response;
+  return supabaseResponse;
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };
