@@ -29,7 +29,16 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { session }, error } = await supabase.auth.getSession();
+  let session = null;
+  let error = null;
+  try {
+    const res = await supabase.auth.getSession();
+    session = res.data?.session || null;
+    error = res.error || null;
+  } catch (e: any) {
+    console.error('Supabase connection error in middleware:', e.message);
+    error = e;
+  }
 
   const isProtected = request.nextUrl.pathname.startsWith('/dashboard') ||
     request.nextUrl.pathname.startsWith('/my-events');
