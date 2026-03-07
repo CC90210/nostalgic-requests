@@ -22,6 +22,7 @@ import EventActions from "./EventActions";
 import EventQRCode from "@/components/dashboard/EventQRCode";
 import LocalTimeDisplay from "@/components/dashboard/LocalTimeDisplay";
 import EventPricingEditor from "@/components/dashboard/EventPricingEditor";
+import { isPlatformOwner as checkPlatformOwner } from "@/lib/platform";
 
 function getClientSupabase() {
     return createBrowserClient(
@@ -127,7 +128,7 @@ export default function EventDetailsPage() {
   };
 
   // SUPER ADMIN OVERRIDE
-  const isPlatformOwner = isPlatformOwner(user?.email);
+  const isPlatformOwner = checkPlatformOwner(user?.email);
   const hasPayouts = !!profile?.stripe_onboarding_complete || isPlatformOwner;
 
   return (

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { User, Phone, FileText, Image as ImageIcon, Loader2, Save, Disc, Banknote, ExternalLink, CheckCircle, Info, Sparkles, Crown, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
+import { isPlatformOwner as checkPlatformOwner } from "@/lib/platform";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -144,7 +145,7 @@ export default function SettingsPage() {
   if (loading) return <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center"><Loader2 className="w-8 h-8 text-purple-500 animate-spin" /></div>;
   if (!user) return null;
 
-  const isPlatformOwner = isPlatformOwner(user.email);
+  const isPlatformOwner = checkPlatformOwner(user.email);
   const isStripeConnected = profile?.stripe_onboarding_complete || isPlatformOwner;
   const isNewDJ = !profile?.dj_name || profile.dj_name === "New DJ";
 

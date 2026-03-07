@@ -26,13 +26,28 @@ export async function middleware(request: NextRequest) {
           });
         },
       },
+      global: {
+        fetch: (url, options) => {
+          return Promise.race([
+            fetch(url, options),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Supabase fetch timeout in Edge middleware')), 3000)
+            ),
+          ]) as Promise<Response>;
+        },
+      },
     }
   );
 
   let session = null;
   let error = null;
   try {
-    const res = await supabase.auth.getSession();
+    // Add an extra layer of timeout just in case
+    const res = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('GetSession timeout')), 3500))
+    ]) as any;
+    
     session = res.data?.session || null;
     error = res.error || null;
   } catch (e: any) {
