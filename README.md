@@ -1,3 +1,5 @@
+> **Status:** Active keeper — reviewed + maintained (Fleet V3, 2026-06-09). Not archived.
+
 # ?? Nostalgic Requests
 
 A premium song request and payment platform for DJs. Accept paid song requests at live events via QR code, process payments with Apple Pay, and manage requests in real-time.
