@@ -82,6 +82,26 @@ export function getSupabaseAdmin(): SupabaseClient {
     supabaseAdminInstance = new Proxy(supa, {
       get(target, prop, receiver) {
         if (prop === 'from') return (table: string) => turso.from(table);
+        // rpc fails closed — this app has zero rpc call sites today, but the
+        // guard matches the fleet pattern (command-center, breeze) so a future
+        // rpc call cannot silently split writes across databases.
+        if (prop === 'rpc') {
+          return (name: string) =>
+            Promise.resolve({
+              data: null,
+              count: null,
+              status: 400,
+              statusText: 'Bad Request',
+              error: {
+                message:
+                  `rpc("${name}") is blocked under EMPIRE_DATA_BACKEND=turso_cloud — ` +
+                  `PL/pgSQL did not migrate. Port the RPC before calling it.`,
+                code: 'TURSO_RPC_BLOCKED',
+                details: null,
+                hint: null,
+              },
+            });
+        }
         return Reflect.get(target, prop, receiver);
       },
     }) as SupabaseClient;
