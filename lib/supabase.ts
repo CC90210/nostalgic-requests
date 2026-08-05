@@ -56,7 +56,39 @@ export function getSupabaseAdmin(): SupabaseClient {
     return createMockClient();
   }
 
-  supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey);
+  const supa = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Data-plane switch (staged Supabase→Turso migration): with
+  // EMPIRE_DATA_BACKEND=turso_cloud and a Turso pair present, table
+  // reads/writes route to Turso; auth/storage stay on Supabase. Rollback =
+  // delete the env var. Server-side only — this factory never runs in the
+  // browser, and Turso credentials must never reach one.
+  if (
+    process.env.EMPIRE_DATA_BACKEND === 'turso_cloud' &&
+    process.env.TURSO_DATABASE_URL &&
+    process.env.TURSO_AUTH_TOKEN
+  ) {
+    // Lazy requires keep @libsql/client out of the client bundle entirely.
+    const { createClient: createLibsql } = require('@libsql/client') as
+      typeof import('@libsql/client');
+    const { createTursoPostgrest } = require('./turso-postgrest') as
+      typeof import('./turso-postgrest');
+    const turso = createTursoPostgrest(
+      createLibsql({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      }),
+    );
+    supabaseAdminInstance = new Proxy(supa, {
+      get(target, prop, receiver) {
+        if (prop === 'from') return (table: string) => turso.from(table);
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as SupabaseClient;
+    return supabaseAdminInstance;
+  }
+
+  supabaseAdminInstance = supa;
   return supabaseAdminInstance;
 }
 
