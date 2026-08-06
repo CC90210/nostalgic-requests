@@ -1,3 +1,4 @@
+import { getAdminData } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
@@ -5,11 +6,7 @@ import { z } from "zod";
 import { rateLimit } from "@/lib/rate-limit";
 import { isPlatformOwner } from "@/lib/platform";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } }
-);
+const supabase = getAdminData();
 
 const checkoutSchema = z.object({
   requestId: z.string().uuid(),

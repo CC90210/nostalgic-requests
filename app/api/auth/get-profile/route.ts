@@ -1,4 +1,5 @@
-﻿import { createClient } from "@supabase/supabase-js";
+﻿import { getAdminData } from "@/lib/supabase-admin";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -27,9 +28,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
+    const supabaseAdmin = getAdminData();
 
     console.log("[Get Profile API] Querying dj_profiles where user_id =", user_id);
 

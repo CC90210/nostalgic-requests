@@ -1,4 +1,5 @@
-﻿import { createClient } from "@supabase/supabase-js";
+﻿import { getAdminData } from "@/lib/supabase-admin";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { getResend } from "@/lib/resend";
 import WelcomeEmail from "@/emails/WelcomeEmail";
@@ -16,11 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing user_id or email" }, { status: 400 });
     }
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
+    const supabaseAdmin = getAdminData();
 
     // RETRY LOGIC: Wait for auth user to be fully committed
     let retries = 3;

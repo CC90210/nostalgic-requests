@@ -1,3 +1,4 @@
+import { getAdminData } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateTotal, PricingConfig, DEFAULT_PRICING } from "@/lib/pricing";
@@ -5,11 +6,7 @@ import { z } from "zod";
 import { rateLimit } from "@/lib/rate-limit";
 
 // Use Service Role to Bypass RLS (for Public Event Check)
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-);
+const supabase = getAdminData();
 
 // Input Validation Schema
 const requestSchema = z.object({
