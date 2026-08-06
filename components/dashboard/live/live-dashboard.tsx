@@ -32,6 +32,23 @@ export function LiveDashboard({ eventId, eventName, initialRequests, initialReve
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   useEffect(() => {
+    // Turso mode: Supabase Realtime is gone — poll the server route every 10s.
+    // Same addRequestToFeed path, so sounds/toasts behave identically.
+    if (process.env.NEXT_PUBLIC_EMPIRE_AUTH_BACKEND === "turso") {
+      const poll = setInterval(async () => {
+        try {
+          const r = await fetch(`/api/events/${eventId}/requests`);
+          if (!r.ok) return;
+          const b = (await r.json()) as { requests: Request[] };
+          for (const nr of b.requests) {
+            if (nr.is_paid && !requests.some((x) => x.id === nr.id)) {
+              addRequestToFeed(nr);
+            }
+          }
+        } catch { /* transient poll failure — next tick retries */ }
+      }, 10_000);
+      return () => clearInterval(poll);
+    }
     const supabase = getSupabase();
     const channel = supabase
       .channel("live-dashboard")
