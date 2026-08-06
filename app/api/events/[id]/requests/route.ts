@@ -4,7 +4,7 @@
  * factory, so reads follow the data-plane switch like everything else.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getAdminData } from "@/lib/supabase-admin";
 import { getTursoUser } from "@/lib/turso-session";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function GET(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
-  const admin = getSupabaseAdmin();
+  const admin = getAdminData();
   const { data, error } = await admin
     .from("requests")
     .select("*")

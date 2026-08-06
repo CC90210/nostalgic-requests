@@ -56,59 +56,13 @@ export function getSupabaseAdmin(): SupabaseClient {
     return createMockClient();
   }
 
-  const supa = createClient(supabaseUrl, supabaseServiceKey);
-
-  // Data-plane switch (staged Supabase→Turso migration): with
-  // EMPIRE_DATA_BACKEND=turso_cloud and a Turso pair present, table
-  // reads/writes route to Turso; auth/storage stay on Supabase. Rollback =
-  // delete the env var. Server-side only — this factory never runs in the
-  // browser, and Turso credentials must never reach one.
-  if (
-    process.env.EMPIRE_DATA_BACKEND === 'turso_cloud' &&
-    process.env.TURSO_DATABASE_URL &&
-    process.env.TURSO_AUTH_TOKEN
-  ) {
-    // Lazy requires keep @libsql/client out of the client bundle entirely.
-    const { createClient: createLibsql } = require('@libsql/client') as
-      typeof import('@libsql/client');
-    const { createTursoPostgrest } = require('./turso-postgrest') as
-      typeof import('./turso-postgrest');
-    const turso = createTursoPostgrest(
-      createLibsql({
-        url: process.env.TURSO_DATABASE_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN,
-      }),
-    );
-    supabaseAdminInstance = new Proxy(supa, {
-      get(target, prop, receiver) {
-        if (prop === 'from') return (table: string) => turso.from(table);
-        // rpc fails closed — this app has zero rpc call sites today, but the
-        // guard matches the fleet pattern (command-center, breeze) so a future
-        // rpc call cannot silently split writes across databases.
-        if (prop === 'rpc') {
-          return (name: string) =>
-            Promise.resolve({
-              data: null,
-              count: null,
-              status: 400,
-              statusText: 'Bad Request',
-              error: {
-                message:
-                  `rpc("${name}") is blocked under EMPIRE_DATA_BACKEND=turso_cloud — ` +
-                  `PL/pgSQL did not migrate. Port the RPC before calling it.`,
-                code: 'TURSO_RPC_BLOCKED',
-                details: null,
-                hint: null,
-              },
-            });
-        }
-        return Reflect.get(target, prop, receiver);
-      },
-    }) as SupabaseClient;
-    return supabaseAdminInstance;
-  }
-
-  supabaseAdminInstance = supa;
+  // NOTE: the Turso data-plane switch does NOT live here. This file is
+  // imported by client components (auth-context, browser proxy), so ANY
+  // reference to @libsql/client from here — even a lazy require — gets traced
+  // into the browser bundle and breaks the build ("Can't resolve 'fs'", seen
+  // on the first Turso deploy). Server code that needs the switched admin
+  // client imports lib/supabase-admin.ts instead.
+  supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey);
   return supabaseAdminInstance;
 }
 
