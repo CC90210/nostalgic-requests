@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // @libsql/client ships native bindings (libsql / @neon-rs) that must load at
+  // runtime from node_modules, not be traced into the webpack bundle — bundling
+  // them is exactly the build failure Vercel showed on the first Turso deploy.
+  serverExternalPackages: ["@libsql/client", "libsql"],
   typescript: {
     // Allows production builds to complete even if your project has type errors
     // Use ONLY if really needed for deployment speed/rescue
