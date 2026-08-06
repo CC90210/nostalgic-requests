@@ -74,6 +74,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = getSupabaseClient();
     let mounted = true;
 
+    // Turso auth mode: identity from our cookie-verified endpoint; the
+    // Supabase session machinery below never runs.
+    if (process.env.NEXT_PUBLIC_EMPIRE_AUTH_BACKEND === "turso") {
+      (async () => {
+        try {
+          const r = await fetch("/api/auth/turso-me");
+          const b = (await r.json()) as { user: { id: string; email: string } | null };
+          if (!mounted) return;
+          if (b.user) {
+            setUser(b.user as any);
+            await fetchProfile(b.user.id);
+          }
+        } catch (error) {
+          console.error("[Auth] Turso init error:", error);
+        } finally {
+          if (mounted) setLoading(false);
+        }
+      })();
+      return () => { mounted = false; };
+    }
+
     const initializeAuth = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -155,22 +176,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    // Turso auth mode: same credentials, verified server-side against the
+    // migrated hash store; session is our HttpOnly cookie.
+    if (process.env.NEXT_PUBLIC_EMPIRE_AUTH_BACKEND === "turso") {
+      const r = await fetch("/api/auth/turso-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!r.ok) {
+        return { error: { message: r.status === 429
+          ? "Too many attempts — wait a few minutes."
+          : "Invalid email or password." } };
+      }
+      const b = (await r.json()) as { user: { id: string; email: string } };
+      setUser(b.user as any);
+      await fetchProfile(b.user.id);
+      return { error: null };
+    }
     const supabase = getSupabaseClient();
-    
+
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    
+
     if (error) return { error };
-    
+
     if (data.user) {
       setSession(data.session);
       setUser(data.user);
       await fetchProfile(data.user.id);
     }
-    
+
     return { error: null };
   };
 
   const signOut = async () => {
+    if (process.env.NEXT_PUBLIC_EMPIRE_AUTH_BACKEND === "turso") {
+      await fetch("/api/auth/turso-me", { method: "DELETE" }).catch(() => null);
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      return;
+    }
     const supabase = getSupabaseClient();
     await supabase.auth.signOut();
     setUser(null);
