@@ -1,3 +1,4 @@
+import { getAdminData } from "@/lib/supabase-admin";
 import { getTursoUser } from "@/lib/turso-session";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -34,8 +35,10 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const dataClient = tursoUser ? getAdminData() : supabase;
+
   // 2. Fetch Profile
-  const { data: profile } = await supabase
+  const { data: profile } = await dataClient
     .from("dj_profiles")
     .select("*")
     .eq("user_id", user.id)
@@ -43,7 +46,7 @@ export default async function DashboardPage() {
 
   // 3. Fetch Events (FORCE FILTER by User ID)
   // This acts as a double-lock protecting data even if RLS is broken.
-  const { data: eventsData } = await supabase
+  const { data: eventsData } = await dataClient
     .from("events")
     .select("*")
     .eq("user_id", user.id) // <--- CRITICAL SECURITY FIX
@@ -58,7 +61,7 @@ export default async function DashboardPage() {
   const eventIds = events.map((e: any) => e.id);
 
   if (eventIds.length > 0) {
-    const { data: validRequests } = await supabase
+    const { data: validRequests } = await dataClient
         .from("requests")
         .select("amount_paid")
         .in("event_id", eventIds)

@@ -1,3 +1,4 @@
+import { getAdminData } from "@/lib/supabase-admin";
 import { getTursoUser } from "@/lib/turso-session";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -30,9 +31,11 @@ export default async function MyEventsPage() {
     redirect("/login");
   }
 
+  const dataClient = tursoUser ? getAdminData() : supabase;
+
   // 2. Fetch Events (FORCE FILTER by User ID)
   // This ensures "DJ Kenny" ONLY gets Kenny's events, regardless of key permissions.
-  const { data: eventsData, error } = await supabase
+  const { data: eventsData, error } = await dataClient
     .from("events")
     .select("*")
     .eq("user_id", user.id) // <--- CRITICAL SECURITY FIX
