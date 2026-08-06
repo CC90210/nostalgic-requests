@@ -1,7 +1,22 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { verifySessionEdge } from '@/lib/turso-auth-edge';
 
 export async function middleware(request: NextRequest) {
+  // Turso auth mode: our HMAC cookie is the session — verified inline, no
+  // Supabase round trip (and none of the timeout scaffolding below needed).
+  if (process.env.EMPIRE_AUTH_BACKEND === 'turso' && process.env.AUTH_SESSION_SECRET) {
+    const isProtectedPath = request.nextUrl.pathname.startsWith('/dashboard') ||
+      request.nextUrl.pathname.startsWith('/my-events');
+    if (!isProtectedPath) return NextResponse.next({ request });
+    const session = await verifySessionEdge(
+      request.cookies.get('nostalgic_session')?.value, process.env.AUTH_SESSION_SECRET);
+    if (session) return NextResponse.next({ request });
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });

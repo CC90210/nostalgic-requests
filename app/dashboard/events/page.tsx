@@ -1,3 +1,4 @@
+import { getTursoUser } from "@/lib/turso-session";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -19,8 +20,11 @@ export default async function MyEventsPage() {
     }
   );
   
-  // 1. Get User
-  const { data: { user } } = await supabase.auth.getUser();
+  // 1. Get User (Turso auth mode reads our cookie; Supabase otherwise)
+  const tursoUser = await getTursoUser();
+  const { data: { user } } = tursoUser
+    ? { data: { user: tursoUser as any } }
+    : await supabase.auth.getUser();
 
   if (!user) {
     redirect("/login");
