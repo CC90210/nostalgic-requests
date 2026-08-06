@@ -140,9 +140,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string): Promise<{ error: any; profile?: DJProfile }> => {
+    // Turso auth mode: signUp would create a SUPABASE auth user that Turso-mode
+    // login cannot see — a stranded account. Gated until the Turso signup path
+    // ships (same policy as command-center's Google signup).
+    if (process.env.NEXT_PUBLIC_EMPIRE_AUTH_BACKEND === "turso") {
+      return { error: { message: "New signups are temporarily paused for maintenance — existing accounts sign in normally." } };
+    }
     const supabase = getSupabaseClient();
-    
-    const { data: authData, error: authError } = await supabase.auth.signUp({ 
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email, 
       password,
       options: { data: { dj_name: djName, phone: phone, full_name: fullName || null } }
