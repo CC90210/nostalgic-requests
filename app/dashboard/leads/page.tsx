@@ -1,22 +1,14 @@
 ﻿"use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { Users, Phone, Mail, DollarSign, Music, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-
-// Client Side RLS-Safe Client
-function getClientSupabase() {
-    return createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-}
 
 export default function LeadsPage() {
   const { user, loading: authLoading } = useAuth();
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -27,20 +19,20 @@ export default function LeadsPage() {
 
     const fetchLeads = async () => {
         try {
-            const supabase = getClientSupabase();
-            // RLS Policies ensure we ONLY get leads where user_id == auth.uid()
-            const { data, error } = await supabase
-                .from("leads")
-                .select("*")
-                .order("last_seen_at", { ascending: false });
-
-            if (!error && data) {
-                setLeads(data);
-            } else if (error) {
-                console.error("Leads fetch error:", error);
+            // Server-side and scoped to this DJ. The browser has no credential
+            // that could safely reach the database directly any more.
+            const res = await fetch("/api/leads");
+            if (!res.ok) {
+                const b = await res.json().catch(() => ({}));
+                throw new Error(b.error || `Failed to load leads (${res.status})`);
             }
-        } catch (err) {
-            console.error("Leads exception:", err);
+            const body = await res.json();
+            setLeads(body.leads || []);
+        } catch (err: any) {
+            // Show it. The old client swallowed failures into an empty table,
+            // which reads as "no leads yet" — indistinguishable from success.
+            console.error("Leads fetch error:", err);
+            setError(err.message || "Failed to load leads");
         } finally {
             setLoading(false);
         }
@@ -53,6 +45,18 @@ export default function LeadsPage() {
       return (
         <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
             <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        </div>
+      );
+  }
+
+  if (error) {
+      return (
+        <div className="min-h-screen bg-[#0A0A0B] p-6 md:p-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Leads</h1>
+          <div className="bg-red-950/40 border border-red-900/60 rounded-xl p-4 max-w-xl">
+            <p className="text-red-300 font-medium mb-1">Couldn&apos;t load your leads</p>
+            <p className="text-red-200/70 text-sm">{error}</p>
+          </div>
         </div>
       );
   }

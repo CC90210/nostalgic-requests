@@ -1,10 +1,9 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getAdminData } from "@/lib/supabase-admin";
+import { adminData as supabase } from "@/lib/supabase-admin";
 import { r2Configured } from "@/lib/r2-storage";
 
 // Init Supabase with Service Role Key (Admin Access)
-const supabase = getAdminData();
 
 export async function POST(req: NextRequest) {
     try {
@@ -22,21 +21,19 @@ export async function POST(req: NextRequest) {
         // empty list that would read as "no buckets exist" and trigger a
         // pointless create attempt on every upload.
         if (!r2Configured()) {
-        const { data: buckets } = await supabase.storage.listBuckets();
-        const avatarBucket = buckets?.find(b => b.name === "avatars");
-        
-        if (!avatarBucket) {
-            // Try to create the bucket if it doesn't exist
-            const { error: createError } = await supabase.storage.createBucket("avatars", {
-                public: true,
-                fileSizeLimit: 5242880, // 5MB
-                allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/webp"]
-            });
-            
-            if (createError) {
-                console.error("Bucket creation failed:", createError);
+            const { data: buckets } = await supabase.storage.listBuckets();
+            const avatarBucket = buckets?.find(b => b.name === "avatars");
+
+            if (!avatarBucket) {
+                const { error: createError } = await supabase.storage.createBucket("avatars", {
+                    public: true,
+                    fileSizeLimit: 5242880, // 5MB
+                    allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/webp"]
+                });
+                if (createError) {
+                    console.error("Bucket creation failed:", createError);
+                }
             }
-        }
         }
 
         // 2. Prepare File

@@ -15,24 +15,56 @@ import { r2Configured, r2StorageSurface } from "@/lib/r2-storage";
 
 let cached: SupabaseClient | null = null;
 
+/**
+ * Stand-in for the Supabase client once the project is cancelled and its keys
+ * are gone. The Turso proxy below only ever forwards `auth`/unknown props to
+ * this target, so reaching it means a caller wants something Turso does not
+ * serve. Throw loudly there rather than returning a client that quietly
+ * resolves to null — lib/supabase.ts already has a mock that does the latter,
+ * and a silent empty read is exactly how a dead backend looks healthy.
+ */
+function absentSupabase(): SupabaseClient {
+  return new Proxy({} as SupabaseClient, {
+    get(_t, prop) {
+      throw new Error(
+        `Supabase is not configured (property "${String(prop)}" requested). ` +
+          `Under EMPIRE_DATA_BACKEND=turso_cloud only .from()/.storage/.rpc() ` +
+          `are served; this call site still needs porting.`,
+      );
+    },
+  });
+}
+
 export function getAdminData(): SupabaseClient {
   if (cached) return cached;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error("Supabase admin env vars missing");
-  }
-  const supa = createSupabase(supabaseUrl, supabaseServiceKey);
-
-  if (
+  const tursoReady =
     process.env.EMPIRE_DATA_BACKEND === "turso_cloud" &&
-    process.env.TURSO_DATABASE_URL &&
-    process.env.TURSO_AUTH_TOKEN
-  ) {
+    !!process.env.TURSO_DATABASE_URL &&
+    !!process.env.TURSO_AUTH_TOKEN;
+
+  // Supabase creds are optional ONLY when Turso is fully wired. Otherwise this
+  // still has to fail closed — a missing key must not degrade into empty reads.
+  if (!supabaseUrl || !supabaseServiceKey) {
+    if (!tursoReady) {
+      throw new Error(
+        "Supabase admin env vars missing and EMPIRE_DATA_BACKEND is not " +
+          "turso_cloud (or TURSO_DATABASE_URL/TURSO_AUTH_TOKEN are unset) — " +
+          "no data backend is reachable.",
+      );
+    }
+  }
+  const supa =
+    supabaseUrl && supabaseServiceKey
+      ? createSupabase(supabaseUrl, supabaseServiceKey)
+      : absentSupabase();
+
+  if (tursoReady) {
     const turso = createTursoPostgrest(
       createLibsql({
-        url: process.env.TURSO_DATABASE_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN,
+        url: process.env.TURSO_DATABASE_URL!,
+        authToken: process.env.TURSO_AUTH_TOKEN!,
       }),
     );
     cached = new Proxy(supa, {
@@ -65,3 +97,23 @@ export function getAdminData(): SupabaseClient {
   cached = supa;
   return cached;
 }
+
+/**
+ * Lazy handle for module-scope use.
+ *
+ * `const supabase = getAdminData()` at the top of a route runs during
+ * `next build`'s page-data collection, where no env vars exist — so the
+ * fail-closed error in getAdminData() aborts the build rather than a request.
+ * Resolution is deferred to the first property access, which only happens
+ * inside a handler.
+ *
+ * Methods are bound to the real client: supabase-js relies on `this`, and
+ * returning them unbound would break every call through the proxy.
+ */
+export const adminData: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getAdminData() as unknown as Record<string | symbol, unknown>;
+    const value = client[prop];
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});

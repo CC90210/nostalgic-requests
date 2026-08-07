@@ -1,9 +1,8 @@
-import { getAdminData } from "@/lib/supabase-admin";
+﻿import { adminData as supabase } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 // Init Supabase Admin
-const supabase = getAdminData();
 
 export async function POST(req: NextRequest) {
   try {

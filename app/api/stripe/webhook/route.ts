@@ -1,4 +1,4 @@
-import { getAdminData } from "@/lib/supabase-admin";
+﻿import { adminData as supabase } from "@/lib/supabase-admin";
 import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
@@ -6,7 +6,6 @@ import { NextResponse } from "next/server";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
-const supabase = getAdminData();
 
 export async function POST(req: Request) {
     const body = await req.text();

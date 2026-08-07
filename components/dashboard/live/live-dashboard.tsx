@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSupabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, CheckCircle, Bell, BellOff, Music, Mic2, Zap } from "lucide-react";
@@ -32,53 +31,24 @@ export function LiveDashboard({ eventId, eventName, initialRequests, initialReve
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   useEffect(() => {
-    // Turso mode: Supabase Realtime is gone — poll the server route every 10s.
-    // Same addRequestToFeed path, so sounds/toasts behave identically.
-    if (process.env.NEXT_PUBLIC_EMPIRE_AUTH_BACKEND === "turso") {
-      const poll = setInterval(async () => {
-        try {
-          const r = await fetch(`/api/events/${eventId}/requests`);
-          if (!r.ok) return;
-          const b = (await r.json()) as { requests: Request[] };
-          for (const nr of b.requests) {
-            if (nr.is_paid && !requests.some((x) => x.id === nr.id)) {
-              addRequestToFeed(nr);
-            }
-          }
-        } catch { /* transient poll failure — next tick retries */ }
-      }, 10_000);
-      return () => clearInterval(poll);
-    }
-    const supabase = getSupabase();
-    const channel = supabase
-      .channel("live-dashboard")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "requests", filter: `event_id=eq.${eventId}` },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-             // A draft was created (is_paid=false). Ignore it UI-wise?
-             // Actually, Realtime will catch Drafts now. We must check is_paid.
-             // But wait, Drafts are INSERT.
-             // Payment Success is UPDATE.
-             const newReq = payload.new as Request;
-             if (newReq.is_paid) {
-                 addRequestToFeed(newReq);
-             }
-          } else if (payload.eventType === "UPDATE") {
-             const updatedReq = payload.new as Request;
-             // If a draft becomes paid, treat it like an insert!
-             if (updatedReq.is_paid && !requests.some(r => r.id === updatedReq.id)) {
-                 addRequestToFeed(updatedReq);
-             } else {
-                 setRequests((p) => p.map((r) => (r.id === payload.new.id ? updatedReq : r)));
-             }
+    // Supabase Realtime is gone — poll the scoped server route every 10s. This
+    // is now the only path: the old postgres_changes branch depended on the
+    // browser Supabase client, which after cancellation degrades to a mock that
+    // subscribes to nothing and reports no error, so the feed would simply stop
+    // updating with no sign anything was wrong.
+    const poll = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/events/${eventId}/requests`);
+        if (!r.ok) return;
+        const b = (await r.json()) as { requests: Request[] };
+        for (const nr of b.requests) {
+          if (nr.is_paid && !requests.some((x) => x.id === nr.id)) {
+            addRequestToFeed(nr);
           }
         }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+      } catch { /* transient poll failure — next tick retries */ }
+    }, 10_000);
+    return () => clearInterval(poll);
   }, [eventId, soundEnabled, requests]); // Dependency on requests for duplication check
 
   const addRequestToFeed = (req: Request) => {
@@ -90,15 +60,36 @@ export function LiveDashboard({ eventId, eventName, initialRequests, initialReve
       // Dashboard sends initialRevenue.
       // If we add a new req, we add to revenue.
       // If we update a draft to paid, we add to revenue.
-      setRevenue((p: number) => p + (req.amount_paid || 0));
+      // amount_paid arrives as TEXT (numeric maps to TEXT so money is never a
+      // float). Without Number() this concatenates — "0" + "7.00" — and the
+      // header's revenue.toFixed(2) then throws, taking the whole dashboard
+      // down for exactly the DJs who have taken a payment.
+      setRevenue((p: number) => Number(p || 0) + Number(req.amount_paid || 0));
       if (soundEnabled) new Audio("/sounds/notification.mp3").play().catch(() => {});
       toast.success(`New Request: ${req.song_title}`);
   }
 
   const handleCreateStatus = async (id: string, status: "played" | "playing") => {
-     setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-     const supabase = getSupabase();
-     await supabase.from("requests").update({ status }).eq("id", id);
+     const prev = requests;
+     setRequests(p => p.map(r => r.id === id ? { ...r, status } : r));
+     try {
+       // Server-side: ownership runs requests -> events -> user_id, because the
+       // browser can no longer be trusted with a database credential.
+       const res = await fetch(`/api/requests/${id}`, {
+         method: "PATCH",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ status }),
+       });
+       if (!res.ok) {
+         const b = await res.json().catch(() => ({}));
+         throw new Error(b.error || `Update failed (${res.status})`);
+       }
+     } catch (e: any) {
+       // The old call awaited a promise whose error was never read, so a failed
+       // write left the UI showing "played" forever.
+       setRequests(prev);
+       toast.error(e.message || "Couldn't update that request");
+     }
   };
 
   const pendingRequests = requests.filter((r) => r.status === "pending" && r.is_paid).sort((a,b) => {

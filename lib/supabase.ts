@@ -67,12 +67,30 @@ export function getSupabaseAdmin(): SupabaseClient {
 }
 
 /**
- * Create a mock client that returns empty results
- * This prevents build-time crashes
+ * Stand-in used when Supabase env vars are absent.
+ *
+ * This used to resolve every query to `{data: null, error: null, status: 200}`
+ * — a successful-looking empty result. With Supabase cancelled and its vars
+ * removed, that turned the whole app into a silent liar: the live dashboard
+ * showed "$0.00 revenue, no requests", the leads table read "No leads yet",
+ * and saving prices reported success while writing nothing. Every one of those
+ * is indistinguishable from a genuinely empty account.
+ *
+ * It now fails loudly instead. Nothing imports getSupabase() any more (the app
+ * routes through lib/supabase-admin.ts and lib/require-user.ts, which honour
+ * EMPIRE_DATA_BACKEND); this exists so that if something ever does again, it
+ * announces itself rather than quietly serving nothing.
  */
 function createMockClient(): SupabaseClient {
+  const refuse = (): never => {
+    throw new Error(
+      'Supabase is not configured, and this call site has not been ported to ' +
+      'the Turso data plane. Use getAdminData()/adminData from ' +
+      'lib/supabase-admin.ts (server) or a scoped /api route (browser).',
+    );
+  };
   const mockResponse = {
-    data: null,
+    get data(): never { return refuse(); },
     error: null,
     count: null,
     status: 200,

@@ -5,14 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Play, Square, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { createClient } from "@supabase/supabase-js";
-
-function getClientSupabase() {
-    return createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-}
 
 interface EventActionsProps {
   event: {
@@ -32,23 +24,26 @@ export default function EventActions({ event, hasPayouts }: EventActionsProps) {
     const oldStatus = currentStatus;
     setCurrentStatus(newStatus); 
     
-    // 2. Background Sync
+    // 2. Background sync. Ownership is checked server-side — the browser can no
+    // longer write to the database directly, and `.eq("id", …)` alone was only
+    // ever safe because RLS was underneath it.
     try {
-      const supabase = getClientSupabase();
-      
-      const { error } = await supabase
-        .from("events")
-        .update({ status: newStatus })
-        .eq("id", event.id);
-
-      if (error) throw error;
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error || `Update failed (${res.status})`);
+      }
 
       toast.success(`Event is now ${newStatus}!`);
       router.refresh(); // Update server components in background
-      
+
     } catch (error: any) {
       console.error("Update error:", error);
-      toast.error("Failed to update status");
+      toast.error(error.message || "Failed to update status");
       setCurrentStatus(oldStatus); // Revert on failure
     }
   };
@@ -60,20 +55,19 @@ export default function EventActions({ event, hasPayouts }: EventActionsProps) {
 
     setIsLoading(true);
     try {
-      const supabase = getClientSupabase();
-      
-      const { error } = await supabase
-        .from("events")
-        .delete()
-        .eq("id", event.id);
-
-      if (error) throw error;
+      const res = await fetch(`/api/events/${event.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error || `Delete failed (${res.status})`);
+      }
 
       toast.success("Event deleted");
       router.push("/dashboard/events");
     } catch (error: any) {
+      // Surface the real reason — the server refuses to delete events that
+      // carry paid requests, and "Failed to delete event" hides that.
       console.error("Delete error:", error);
-      toast.error("Failed to delete event");
+      toast.error(error.message || "Failed to delete event");
       setIsLoading(false);
     }
   };

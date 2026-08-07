@@ -1,32 +1,29 @@
-import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
 import { redirect } from 'next/navigation';
 import { LiveDashboard } from "@/components/dashboard/live/live-dashboard"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
+import { resolveUser } from "@/lib/require-user";
 
 export const dynamic = 'force-dynamic';
 
 export default async function LivePage() {
-  if (!isSupabaseConfigured()) {
-    return (
-      <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Live Dashboard</h1>
-        <p className="text-gray-400">Loading...</p>
-      </div>
-    );
-  }
+  // Previously this ran getSupabase() — which silently returns a MOCK client
+  // when the Supabase env vars are absent — and selected the newest non-ended
+  // event with NO user filter at all. RLS was the only thing keeping one DJ off
+  // another DJ's live event; without it that query hands over whichever event
+  // was created most recently on the whole platform.
+  const ctx = await resolveUser();
+  if (!ctx) redirect('/login');
 
-  const supabase = getSupabase();
-
-  // Find the currently live event (or most recent created)
-  const { data: event } = await supabase
+  const { data: event } = await ctx.db
     .from("events")
     .select("*")
+    .eq("user_id", ctx.user.id)
     .neq("status", "ended")
     .order("created_at", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (!event) {
     return (
@@ -41,18 +38,21 @@ export default async function LivePage() {
   }
 
   // 2. Fetch initial requests (Strictly PAID only)
-  const { data: requests } = await supabase
+  const { data: requests } = await ctx.db
     .from("requests")
     .select("*")
     .eq("event_id", event.id)
     .eq("is_paid", true)
     .order("created_at", { ascending: false })
 
-  // 3. Calculate initial revenue (Strictly PAID only)
-  const initialRevenue = requests?.reduce((sum, req) => sum + (req.amount_paid || 0), 0) || 0
+  // 3. Initial revenue. amount_paid is TEXT — numeric maps to TEXT so money
+  // never becomes a float — so `sum + r.amount_paid` CONCATENATES and the
+  // result explodes later at .toFixed(). Coerce here.
+  const initialRevenue = (requests ?? []).reduce(
+    (sum: number, req: any) => sum + Number(req.amount_paid || 0), 0)
 
   return (
-    <LiveDashboard 
+    <LiveDashboard
         eventId={event.id}
         eventName={event.name}
         venueName={event.venue_name}

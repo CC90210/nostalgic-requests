@@ -1,9 +1,8 @@
-import { getAdminData } from "@/lib/supabase-admin";
+﻿import { adminData as supabase } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
 
-const supabase = getAdminData();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 

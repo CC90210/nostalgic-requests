@@ -80,7 +80,13 @@ DJ signs up, connects Stripe account, creates an event. Audience scans QR code, 
 
 ## Key Patterns
 
-**Supabase client access:** Always use `getSupabase()` or `getSupabaseAdmin()` from `lib/supabase.ts`. Never instantiate a client directly. `getSupabaseAdmin()` is server-side only (service role key).
+**Database access (post-Turso):** Server code uses `adminData` (or `getAdminData()`) from `lib/supabase-admin.ts` — it honours `EMPIRE_DATA_BACKEND` and routes to Turso or Supabase accordingly. Prefer the `adminData` lazy handle at module scope; a direct `getAdminData()` call at import time runs during `next build` and fails the build. Pages and routes that act on behalf of a signed-in DJ use `resolveUser()` / `requireUser()` from `lib/require-user.ts`, which returns both the session and the right client.
+
+Do **not** use `getSupabase()` / `getSupabaseAdmin()` from `lib/supabase.ts`. They bypass the Turso switch, and `getSupabase()` returns a stand-in client when env vars are absent.
+
+**The browser gets no database credential.** Turso has no RLS, so every query needs an explicit ownership filter and must run server-side. `events` filters on `user_id`; `requests` and anything under an event derive ownership through `ownedEvent()`; `leads` filters on `user_id`. A browser-side `.eq("id", …)` with no owner check used to be safe because RLS was underneath it — it no longer is.
+
+**Money columns are TEXT.** `numeric` maps to `TEXT` so money never becomes a float. `amount_paid`, `total_spent` and the `price_*` columns must be wrapped in `Number(...)` before any arithmetic, or `+` concatenates and the later `.toFixed(2)` throws.
 
 **Stripe:** Always use `getStripe()` from `lib/stripe.ts`. Never call `new Stripe()` directly.
 

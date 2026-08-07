@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { getSupabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { DollarSign, Save, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,13 +27,19 @@ export default function EventPricingEditor({ eventId, initialPricing }: { eventI
   const handleSave = async () => {
     setLoading(true);
     try {
-      const supabase = getSupabase();
-      const { error } = await supabase
-        .from("events")
-        .update(prices)
-        .eq("id", eventId);
-
-      if (error) throw error;
+      // Was getSupabase() — which returns a MOCK client that resolves to
+      // {data:null,error:null} whenever the Supabase env vars are absent. Once
+      // those are removed this would have reported "Prices updated!" and
+      // written nothing.
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(prices),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error || `Update failed (${res.status})`);
+      }
       toast.success("Prices updated instantly! Refresh public page to see changes.");
     } catch (err: any) {
       toast.error(err.message || "Failed to update prices");

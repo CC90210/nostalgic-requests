@@ -1,4 +1,4 @@
-import { getAdminData } from "@/lib/supabase-admin";
+﻿import { adminData as supabase } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
@@ -6,7 +6,6 @@ import { z } from "zod";
 import { rateLimit } from "@/lib/rate-limit";
 import { isPlatformOwner } from "@/lib/platform";
 
-const supabase = getAdminData();
 
 const checkoutSchema = z.object({
   requestId: z.string().uuid(),

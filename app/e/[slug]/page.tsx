@@ -1,5 +1,4 @@
-﻿import { createClient } from "@supabase/supabase-js";
-import { RequestFlow } from "@/components/portal/request-flow";
+﻿import { RequestFlow } from "@/components/portal/request-flow";
 import { notFound } from "next/navigation";
 import { DEFAULT_PRICING, PricingConfig } from "@/lib/pricing";
 import Image from "next/image";
@@ -15,12 +14,21 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
 
     console.log("[Portal] Init for slug:", slug);
 
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    // A data backend must be configured — but it no longer has to be Supabase.
+    // Gating on the Supabase vars alone would black out the public request
+    // portal the moment those are removed, even with Turso fully wired.
+    const tursoReady =
+        process.env.EMPIRE_DATA_BACKEND === "turso_cloud" &&
+        !!process.env.TURSO_DATABASE_URL &&
+        !!process.env.TURSO_AUTH_TOKEN;
+    const supabaseReady =
+        !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!tursoReady && !supabaseReady) {
         return (
             <div className="h-screen flex items-center justify-center bg-black text-white p-8 border-4 border-red-500">
                 <div>
                     <h1 className="text-3xl font-bold mb-4">Configuration Error</h1>
-                    <p>Missing Service Role Key or URL.</p>
+                    <p>No data backend is configured for this deployment.</p>
                 </div>
             </div>
         );

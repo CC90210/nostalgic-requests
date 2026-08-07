@@ -1,26 +1,34 @@
 /**
  * Paid requests for an event — the polling source for the live DJ dashboard
- * under Turso mode (Supabase Realtime replacement). Server-side via the admin
- * factory, so reads follow the data-plane switch like everything else.
+ * under Turso mode (Supabase Realtime replacement).
+ *
+ * The first version of this route checked only that SOMEONE was signed in, not
+ * that the event was theirs. Under RLS that was survivable; with a service-role
+ * client and no RLS it meant any authenticated DJ could read another DJ's paid
+ * requests — including requester names, phone numbers and emails — by knowing
+ * an event id. Ownership is now proven before the read.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminData } from "@/lib/supabase-admin";
-import { getTursoUser } from "@/lib/turso-session";
+import { requireUser, ownedEvent } from "@/lib/require-user";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  // Event dashboards are DJ-only surfaces; require a session in Turso mode.
-  const user = await getTursoUser();
-  if (process.env.EMPIRE_AUTH_BACKEND === "turso" && !user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.res;
   const { id } = await params;
-  const admin = getAdminData();
-  const { data, error } = await admin
+
+  if (!(await ownedEvent(auth.ctx, id, "id"))) {
+    // 404 rather than 403: a DJ should not be able to probe which event ids
+    // exist on other accounts.
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
+  const { data, error } = await auth.ctx.db
     .from("requests")
     .select("*")
     .eq("event_id", id)

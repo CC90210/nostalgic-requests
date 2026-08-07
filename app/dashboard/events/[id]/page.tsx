@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { notFound, useParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { createBrowserClient } from "@supabase/ssr";
-import { 
+import {
   ArrowLeft, 
   Calendar, 
   MapPin, 
@@ -23,13 +22,6 @@ import EventQRCode from "@/components/dashboard/EventQRCode";
 import LocalTimeDisplay from "@/components/dashboard/LocalTimeDisplay";
 import EventPricingEditor from "@/components/dashboard/EventPricingEditor";
 import { isPlatformOwner as checkPlatformOwner } from "@/lib/platform";
-
-function getClientSupabase() {
-    return createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-}
 
 export default function EventDetailsPage() {
   const { id } = useParams();
@@ -50,37 +42,23 @@ export default function EventDetailsPage() {
 
     const fetchData = async () => {
         try {
-            const supabase = getClientSupabase();
             const eventId = Array.isArray(id) ? id[0] : id;
 
-            // 1. Fetch Event (RLS Filtered)
-            const { data: eventData, error: eventError } = await supabase
-                .from("events")
-                .select("*")
-                .eq("id", eventId)
-                .single();
-
-            if (eventError) throw eventError;
-            if (!eventData) throw new Error("Event not found");
-
-            setEvent(eventData);
-
-            // 2. Fetch Stats
-            const { data: requests, error: reqError } = await supabase
-                .from("requests")
-                .select("amount_paid, status")
-                .eq("event_id", eventId)
-                .eq("is_paid", true);
-
-            if (reqError) console.error("Stats error:", reqError);
-
-            const statsData = {
-                totalRequests: requests?.length || 0,
-                totalRevenue: requests?.reduce((sum, r) => sum + Number(r.amount_paid || 0), 0) || 0,
-                pendingRequests: requests?.filter(r => r.status === "pending").length || 0,
-                playedRequests: requests?.filter(r => r.status === "played").length || 0,
-            };
-            setStats(statsData);
+            // One scoped server call replaces the two browser queries. The
+            // event list page already read from Turso while this page still
+            // read Supabase, so a freshly created event showed "Access Denied"
+            // on its own detail page. Stats are computed server-side, where
+            // amount_paid's TEXT type is coerced once.
+            const res = await fetch(`/api/events/${eventId}`);
+            if (!res.ok) {
+                const b = await res.json().catch(() => ({}));
+                throw new Error(b.error === "not found"
+                    ? "Event not found"
+                    : (b.error || `Failed to load event (${res.status})`));
+            }
+            const body = await res.json();
+            setEvent(body.event);
+            setStats(body.stats);
 
         } catch (err: any) {
             console.error("Detail fetch error:", err);

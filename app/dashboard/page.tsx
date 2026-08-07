@@ -69,7 +69,12 @@ export default async function DashboardPage() {
 
     if (validRequests) {
         totalRequests = validRequests.length;
-        totalRevenue = validRequests.reduce((sum, r) => sum + (r.amount_paid || 0), 0);
+        // amount_paid is TEXT by design (numeric -> TEXT, so money is never a
+        // float). Without Number() this concatenates into "07.002.00..." and
+        // DashboardOverview's stats.totalRevenue.toFixed(2) throws — crashing
+        // /dashboard for every DJ who has actually taken money.
+        totalRevenue = validRequests.reduce(
+            (sum: number, r: any) => sum + Number(r.amount_paid || 0), 0);
     }
   }
 

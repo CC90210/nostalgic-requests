@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getAdminData } from "@/lib/supabase-admin";
+import { adminData as supabase } from "@/lib/supabase-admin";
 
 // Use Service Role to Bypass RLS and Admin Auth
-const supabase = getAdminData();
 
 export async function POST(req: NextRequest) {
     try {

@@ -4,8 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { createClient } from "@supabase/supabase-js";
-import { 
+import {
   ArrowLeft, 
   MapPin, 
   Calendar, 
@@ -20,14 +19,6 @@ import {
   Navigation
 } from "lucide-react";
 import { toast } from "sonner";
-
-// Client Side Supabase
-function getClientSupabase() {
-    return createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-}
 
 const HOURS = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, "0"));
 const MINUTES = ["00", "15", "30", "45"];
@@ -82,46 +73,44 @@ export default function CreateEventPage() {
 
     setIsLoading(true);
     try {
-      const supabase = getClientSupabase();
-      
       const startObj = constructDateTime(date, startHour, startMinute, startPeriod);
       let endObj = constructDateTime(date, endHour, endMinute, endPeriod);
-      
+
       if (endObj < startObj) {
           endObj.setDate(endObj.getDate() + 1);
       }
 
-      const cleanName = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      const uniqueSlug = `${cleanName}-${Math.random().toString(36).substring(2, 7)}`;
-
-      const { data, error } = await supabase
-        .from("events")
-        .insert({
-          user_id: user.id, // Explicit ID attachment
+      // The server owns user_id and the slug now: user_id comes from the
+      // session rather than the form, and minting the slug client-side let two
+      // browsers collide on another DJ's public portal URL.
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name,
           venue_name: venue,
-          venue_address: address, // NEW FIELD
+          venue_address: address,
           start_time: startObj.toISOString(),
           end_time: endObj.toISOString(),
           event_type: eventType,
-          unique_slug: uniqueSlug,
-          status: "draft",
           price_single: parseFloat(pricing.single) || 5,
           price_double: parseFloat(pricing.double) || 8,
           price_party: parseFloat(pricing.party) || 12,
           price_priority: parseFloat(pricing.priority) || 10,
           price_shoutout: parseFloat(pricing.shoutout) || 5,
-          price_guaranteed: parseFloat(pricing.guaranteed) || 20
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+          price_guaranteed: parseFloat(pricing.guaranteed) || 20,
+        }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error || `Failed to create event (${res.status})`);
+      }
+      const { event } = await res.json();
 
       toast.success("Event created successfully!");
-      router.push(`/dashboard/events/${data.id}`);
-      router.refresh(); 
-      
+      router.push(`/dashboard/events/${event.id}`);
+      router.refresh();
+
     } catch (error: any) {
       console.error("Create failed:", error);
       toast.error(error.message || "Failed to create event");
