@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { DEFAULT_PRICING, PricingConfig } from "@/lib/pricing";
 import Image from "next/image";
 import Link from "next/link";
+import { getAdminData } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +26,11 @@ export default async function EventPortalPage({ params }: { params: Promise<{ sl
         );
     }
 
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY,
-        { auth: { persistSession: false } }
-    );
+    // getAdminData() honours EMPIRE_DATA_BACKEND; building a client here
+    // directly did not, so the DJ dashboard wrote events to Turso while this
+    // public guest page read Supabase — a guest scanning the QR for a
+    // just-created event got a 404. Same credentials, correct backend.
+    const supabase = getAdminData();
 
     try {
         const fetchPromise = supabase.from("events").select("*").eq("unique_slug", slug).single();
