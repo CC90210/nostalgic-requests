@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAdminData } from "@/lib/supabase-admin";
+import { r2Configured } from "@/lib/r2-storage";
 
 // Init Supabase with Service Role Key (Admin Access)
 const supabase = getAdminData();
@@ -15,7 +16,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Missing file or userId" }, { status: 400 });
         }
 
-        // 1. Ensure "avatars" bucket exists
+        // 1. Ensure "avatars" bucket exists.
+        // Supabase-only ceremony: on R2 the bucket is provisioned once, out of
+        // band, and the adapter refuses listBuckets rather than returning an
+        // empty list that would read as "no buckets exist" and trigger a
+        // pointless create attempt on every upload.
+        if (!r2Configured()) {
         const { data: buckets } = await supabase.storage.listBuckets();
         const avatarBucket = buckets?.find(b => b.name === "avatars");
         
@@ -30,6 +36,7 @@ export async function POST(req: NextRequest) {
             if (createError) {
                 console.error("Bucket creation failed:", createError);
             }
+        }
         }
 
         // 2. Prepare File

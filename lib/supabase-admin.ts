@@ -11,6 +11,7 @@ import "server-only";
 import { createClient as createSupabase, type SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createLibsql } from "@libsql/client";
 import { createTursoPostgrest } from "./turso-postgrest";
+import { r2Configured, r2StorageSurface } from "@/lib/r2-storage";
 
 let cached: SupabaseClient | null = null;
 
@@ -49,6 +50,12 @@ export function getAdminData(): SupabaseClient {
                 code: "TURSO_RPC_BLOCKED", details: null, hint: null,
               },
             });
+        }
+        // Turso has no object store, so .storage routes to R2 when configured.
+        // Without this it passed through to Supabase regardless of the data
+        // flag — the same gap that kept storage a hard dependency.
+        if (prop === "storage" && r2Configured()) {
+          return r2StorageSurface();
         }
         return Reflect.get(target, prop, receiver);
       },
