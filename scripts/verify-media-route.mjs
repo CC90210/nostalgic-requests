@@ -22,8 +22,13 @@ const check = (name, ok, detail = "") => {
 const src = readFileSync(
   new URL("../app/api/media/[...path]/route.ts", import.meta.url), "utf8");
 
-// Pull the literal allowlist out of the source.
-const block = src.match(/const PUBLIC_PREFIXES = new Set\(\[([\s\S]*?)\]\)/);
+// The allowlist now lives in lib/r2-storage.ts — byte-identical across four
+// repos with its own drift check — so read it from there. Reading a copy inside
+// the route would let this test keep passing while the shared boundary moved.
+const adapter = readFileSync(
+  new URL("../lib/r2-storage.ts", import.meta.url), "utf8");
+const block = adapter.match(
+  /PUBLIC_BUCKET_PREFIXES: ReadonlySet<string> = new Set\(\[([\s\S]*?)\]\)/);
 const allowed = new Set(
   [...(block?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]));
 
@@ -47,6 +52,10 @@ check("an unknown bucket is refused",
       "a new bucket must be private until listed");
 check("the check is membership on the allowlist",
       /PUBLIC_PREFIXES\.has\(bucket\)/.test(src));
+check("the route uses the SHARED allowlist, not a local copy",
+      /PUBLIC_BUCKET_PREFIXES/.test(src) &&
+      !/const PUBLIC_PREFIXES = new Set\(\[/.test(src),
+      "a local copy drifts silently from the other apps");
 check("refusal happens BEFORE anything is signed",
       src.indexOf("PUBLIC_PREFIXES.has(bucket)") < src.indexOf("createSignedUrl"),
       "signing before the check would leak on the error path");
