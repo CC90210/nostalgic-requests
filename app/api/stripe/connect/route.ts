@@ -1,19 +1,32 @@
 ﻿import { adminData as supabase } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireUser } from "@/lib/require-user";
+import { isPlatformOwner } from "@/lib/platform";
 
-// Init Supabase Admin
-
+/**
+ * Stripe Connect onboarding for the SIGNED-IN DJ.
+ *
+ * Identity comes from the session, never from the request body. Until
+ * 2026-08-16 this handler read `userId` and `email` off `req.json()` and ran
+ * every query through the service-role client with no session check at all, so
+ * an unauthenticated POST could mint an Express onboarding link bound to any
+ * DJ's payout account — and the platform-owner guard compared an email supplied
+ * by the same caller, so omitting `email` skipped it entirely.
+ *
+ * `stripe/checkout/route.ts` already did this correctly (it resolves the email
+ * from the auth record, then calls isPlatformOwner). This route now matches.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { userId, email } = await req.json();
+    const auth = await requireUser();
+    if (!auth.ok) return auth.res;
 
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
-    }
+    const userId = auth.ctx.user.id;
+    const email = auth.ctx.user.email;
 
-    // SUPER ADMIN BLOCK
-    if (email && email.toLowerCase() === "konamak@icloud.com") {
+    // SUPER ADMIN BLOCK — the email is the session's, so this cannot be skipped
+    // by omitting a field.
+    if (isPlatformOwner(email)) {
         console.log("Platform Owner attempted Connect. Blocking.");
         return NextResponse.json({ error: "Platform Owner cannot connect as a sub-account." }, { status: 400 });
     }

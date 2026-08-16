@@ -1,21 +1,32 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { adminData as supabase } from "@/lib/supabase-admin";
+import { requireUser } from "@/lib/require-user";
 
-// Use Service Role to Bypass RLS and Admin Auth
-
+/**
+ * Update the SIGNED-IN DJ's own profile.
+ *
+ * The target user comes from the session. Until 2026-08-16 `userId` was read
+ * from the request body and everything ran through the service-role client with
+ * no session check, so an unauthenticated POST could overwrite any DJ's profile
+ * row AND their Supabase auth user_metadata, with the victim chosen by a body
+ * field.
+ *
+ * The remaining body fields are the caller's own profile content and stay
+ * caller-supplied — they are destructured explicitly rather than spread, so a
+ * client cannot smuggle extra columns into the upsert.
+ */
 export async function POST(req: NextRequest) {
     try {
+        const auth = await requireUser();
+        if (!auth.ok) return auth.res;
+
+        const userId = auth.ctx.user.id;
         const body = await req.json();
-        const { userId, dj_name, full_name, phone, bio, profile_image_url } = body;
-        
-        if (!userId) {
-             return NextResponse.json({ error: "Missing User ID" }, { status: 400 });
-        }
+        const { dj_name, full_name, phone, bio, profile_image_url } = body;
 
         // 1. Fetch User Email (Crucial for new Profile creation)
         const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-        
+
         if (userError || !userData.user) {
             throw new Error("Failed to fetch user auth data");
         }
@@ -67,8 +78,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch(err: any) {
+        // Log the detail, return a generic message — the raw error names
+        // columns and constraints the caller has no business seeing.
         console.error("Profile update failed (API):", err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
+        return NextResponse.json({ error: "Could not update profile" }, { status: 500 });
     }
 }
 // Trigger Vercel Deploy
