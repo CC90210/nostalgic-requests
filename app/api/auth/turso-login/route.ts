@@ -1,7 +1,7 @@
 /** Password login against the migrated auth store (Turso). See breeze-portal
  * for the annotated original; 5-user app, same guarantees. */
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@libsql/client";
+import { createClient } from "@libsql/client/web";
 import { SESSION_COOKIE, signSession, tursoAuthActive, verifyPassword } from "@/lib/turso-auth";
 
 export const runtime = "nodejs";

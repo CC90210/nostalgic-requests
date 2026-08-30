@@ -9,7 +9,7 @@
  */
 import "server-only";
 import { createClient as createSupabase, type SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createLibsql } from "@libsql/client";
+import { createClient as createLibsql } from "@libsql/client/web";
 import { createTursoPostgrest } from "./turso-postgrest";
 import { r2Configured, r2StorageSurface } from "@/lib/r2-storage";
 
