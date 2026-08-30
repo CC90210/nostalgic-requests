@@ -11,12 +11,27 @@
 # REQUIRED REPO SECRETS (CC adds these in Settings → Secrets → Actions):
 #   CLOUDFLARE_API_TOKEN   — Workers Scripts:Edit on the deploying account
 #   CLOUDFLARE_ACCOUNT_ID  — e371c0f2dfde76e329b351a54bc738fe
-#   -- build-time values inlined by the bundler:
-#   NEXT_PUBLIC_APP_URL
-#   NEXT_PUBLIC_EMPIRE_AUTH_BACKEND
-#   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-#   NEXT_PUBLIC_SUPABASE_ANON_KEY
-#   NEXT_PUBLIC_SUPABASE_URL
+#   -- every manifest key: the build needs runtime secrets too,
+#      because module-scope SDK init runs during page-data collection
+#   AUTH_SESSION_SECRET
+#   CLOUDFLARE_ACCOUNT_ID
+#   EMPIRE_AUTH_BACKEND
+#   EMPIRE_DATA_BACKEND
+#   NEXT_PUBLIC_APP_URL  (inlined into the client bundle)
+#   NEXT_PUBLIC_EMPIRE_AUTH_BACKEND  (inlined into the client bundle)
+#   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY  (inlined into the client bundle)
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY  (inlined into the client bundle)
+#   NEXT_PUBLIC_SUPABASE_URL  (inlined into the client bundle)
+#   R2_ACCESS_KEY_ID
+#   R2_BUCKET
+#   R2_PUBLIC_BASE_URL
+#   R2_SECRET_ACCESS_KEY
+#   RESEND_API_KEY
+#   STRIPE_SECRET_KEY
+#   STRIPE_WEBHOOK_SECRET
+#   SUPABASE_SERVICE_ROLE_KEY
+#   TURSO_AUTH_TOKEN
+#   TURSO_DATABASE_URL
 #
 # Until CLOUDFLARE_API_TOKEN exists the job still BUILDS (real signal on build
 # breakage) and SKIPS the deploy with a warning — no red CI while the migration
@@ -73,11 +88,25 @@ jobs:
         run: npx opennextjs-cloudflare build
         env:
           CF_MIGRATION_BUILD: "1"
+          AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          EMPIRE_AUTH_BACKEND: ${{ secrets.EMPIRE_AUTH_BACKEND }}
+          EMPIRE_DATA_BACKEND: ${{ secrets.EMPIRE_DATA_BACKEND }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_EMPIRE_AUTH_BACKEND: ${{ secrets.NEXT_PUBLIC_EMPIRE_AUTH_BACKEND }}
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
 
       - name: Deploy to Cloudflare Workers
         if: steps.preflight.outputs.ready == 'true'
