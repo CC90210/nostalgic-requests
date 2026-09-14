@@ -1,10 +1,14 @@
 "use client";
 
 export default function Stats() {
+  // These are terms of the product, not traction claims. Do not put usage or
+  // revenue figures here unless they are read from live Stripe/DB data --
+  // the previous hardcoded "$50k+ / 10k+ / 500+" advertised traction the
+  // platform has never had, on a public page prospects can check.
   const stats = [
-    { label: "Requests Processed", value: "$50k+" },
-    { label: "Songs Played", value: "10k+" },
-    { label: "Active Performers", value: "500+" },
+    { label: "You Keep", value: "95%" },
+    { label: "Monthly Fees", value: "$0" },
+    { label: "Payouts", value: "Instant" },
   ];
 
   return (

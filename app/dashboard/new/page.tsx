@@ -281,7 +281,7 @@ export default function CreateEventPage() {
                     color="purple"
                 />
                 <PriceInput 
-                    label="Party Pack (5)" 
+                    label="Party Pack (3)"
                     subLabel="Bulk discount"
                     icon={<Sparkles className="w-5 h-5 text-pink-400"/>} 
                     value={pricing.party} 

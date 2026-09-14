@@ -129,7 +129,25 @@ export default function TermsPage() {
           <h2>17. Severability</h2>
           <p>If any provision of these Terms is found to be unenforceable, the remaining provisions will continue in full force and effect.</p>
 
-          <h2>18. Contact Information</h2>
+          <h2>18. Copyright Complaints (DMCA) and Music Rights</h2>
+          <h3>18.1 Designated Agent</h3>
+          <p>We respond to notices of alleged copyright infringement concerning content stored on the Service at the direction of a user. Send notices to our designated agent at <strong>dmca@nostalgicrequests.com</strong>.</p>
+
+          <h3>18.2 What a Valid Notice Must Contain</h3>
+          <p>To be effective under 17 U.S.C. § 512(c)(3), a notice must include: (a) a physical or electronic signature; (b) identification of the copyrighted work; (c) identification of the material claimed to be infringing and where it is located; (d) your contact information; (e) a statement of good faith belief that the use is not authorized; and (f) a statement, under penalty of perjury, that the notice is accurate and you are authorized to act for the owner.</p>
+
+          <h3>18.3 Counter-Notice and Repeat Infringers</h3>
+          <p>If your content was removed, you may submit a counter-notice under 17 U.S.C. § 512(g). We may restore the material 10 to 14 business days after forwarding a valid counter-notice unless the complainant files a court action. We terminate the accounts of repeat infringers in appropriate circumstances.</p>
+
+          <h3>18.4 Canadian Notice-and-Notice</h3>
+          <p>We operate from Canada. For Canadian users, sections 41.25 to 41.27 of the <em>Copyright Act</em> (Canada) apply, under which we forward compliant notices to the affected user rather than removing content automatically.</p>
+
+          <h3>18.5 Performance Licensing Is Not Provided</h3>
+          <p>As stated in section 9.3, the Service does NOT grant any music performance, mechanical, or synchronization license. Song titles and requests submitted by Guests are user-generated content. Performers are solely responsible for holding the appropriate licenses (SOCAN, ASCAP, BMI, or equivalent) for any music they perform, and for any venue-level licensing obligations.</p>
+
+          <p>Knowingly making a material misrepresentation in a notice may make you liable for damages under 17 U.S.C. § 512(f).</p>
+
+          <h2>19. Contact Information</h2>
           <p>For questions about these Terms, contact us at:</p>
           <ul>
              <li><strong>Email:</strong> support@nostalgicrequests.com</li>

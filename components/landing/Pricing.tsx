@@ -43,7 +43,7 @@ export default function Pricing() {
                     <div className="flex justify-between items-center p-4 rounded-xl bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-500/20">
                         <div>
                             <span className="font-bold text-white block">Party Pack</span>
-                            <span className="text-xs text-gray-400">5 Songs (Save $3)</span>
+                            <span className="text-xs text-gray-400">3 Songs (Save $3)</span>
                         </div>
                         <span className="text-pink-400 font-bold">$12.00</span>
                     </div>

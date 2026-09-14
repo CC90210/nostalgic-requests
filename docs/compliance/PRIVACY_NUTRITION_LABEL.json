@@ -1,0 +1,98 @@
+{
+  "$comment": "App-store-style privacy manifest for Nostalgic Requests. Generated from the product's real behaviour on 2026-07-27 by scanning collected fields, payment integration, and analytics SDKs. If you add a tracker or a new collected field, update this file in the same commit as the code change.",
+  "schemaVersion": "1.0",
+  "app": {
+    "name": "Nostalgic Requests",
+    "publisher": "Nostalgic Requests",
+    "jurisdiction": "Canada",
+    "privacyPolicyUrl": "/privacy",
+    "termsUrl": "/terms",
+    "dmcaUrl": "/dmca",
+    "privacyContact": "support@nostalgicrequests.com",
+    "dmcaContact": "dmca@nostalgicrequests.com"
+  },
+  "lastVerified": "2026-07-27",
+  "verificationMethod": "Static scan of app/ and lib/ for collected fields, payment SDKs, and analytics initialization.",
+
+  "tracking": {
+    "usedForTracking": false,
+    "thirdPartyAnalyticsSdks": [
+      {
+        "name": "@vercel/analytics",
+        "initializedIn": "app/layout.tsx",
+        "collects": "Page views, referrer, device type, coarse geo",
+        "cookieless": true,
+        "note": "Vercel Web Analytics is cookieless and does not build cross-site profiles, but it is still a third-party processor and must be disclosed."
+      }
+    ],
+    "advertisingPixels": []
+  },
+
+  "dataCollected": [
+    {
+      "category": "Contact Info",
+      "fields": ["name", "email", "phone"],
+      "purposes": ["App Functionality", "Customer Support"],
+      "linkedToUser": true,
+      "usedForTracking": false,
+      "sensitive": false,
+      "sharedWith": ["Supabase", "Stripe"],
+      "retention": "Life of account, then 24 months"
+    },
+    {
+      "category": "User Content — Song Requests",
+      "fields": ["song", "artist", "dedication or message text"],
+      "purposes": ["App Functionality"],
+      "linkedToUser": true,
+      "usedForTracking": false,
+      "sensitive": false,
+      "sharedWith": ["Supabase", "The performer receiving the request"],
+      "retention": "Retained with the event record",
+      "note": "Free-text user-generated content displayed to a performer. This is the UGC surface that makes a DMCA policy and designated agent necessary."
+    },
+    {
+      "category": "Financial Info",
+      "fields": ["stripe_payment_id", "stripe_account_id"],
+      "purposes": ["App Functionality", "Payment Processing"],
+      "linkedToUser": true,
+      "usedForTracking": false,
+      "sensitive": true,
+      "sharedWith": ["Stripe, Inc."],
+      "retention": "As required for financial recordkeeping",
+      "note": "Card numbers are never touched by this application — Stripe Checkout and Stripe Connect handle card data directly. Only Stripe identifiers are stored."
+    },
+    {
+      "category": "Usage Data",
+      "fields": ["page_views", "referrer", "device_type", "coarse_geo"],
+      "purposes": ["Analytics"],
+      "linkedToUser": false,
+      "usedForTracking": false,
+      "sensitive": false,
+      "sharedWith": ["Vercel"],
+      "retention": "Per Vercel Web Analytics retention"
+    }
+  ],
+
+  "subprocessors": [
+    { "name": "Supabase, Inc.", "role": "Database and authentication", "region": "United States", "dpaInPlace": true },
+    { "name": "Stripe, Inc.", "role": "Payment processing and Connect payouts", "region": "United States", "dpaInPlace": true },
+    { "name": "Vercel, Inc.", "role": "Hosting and cookieless web analytics", "region": "United States / global edge", "dpaInPlace": true }
+  ],
+
+  "userRights": {
+    "access": true,
+    "correction": true,
+    "deletion": true,
+    "portability": true,
+    "withdrawConsent": true,
+    "requestChannel": "support@nostalgicrequests.com",
+    "responseTargetDays": 30
+  },
+
+  "openGaps": [
+    "Privacy policy does not yet name @vercel/analytics as a processor — this manifest is ahead of the policy page.",
+    "DMCA Designated Agent not yet registered with the U.S. Copyright Office (dmca@nostalgicrequests.com mailbox must exist first).",
+    "Terms name Toronto, Ontario as the arbitration seat and contact address; the operator relocated to Montreal in 2026-07. Changing an arbitration seat is a legal decision, not a find-replace.",
+    "No AI/LLM processing occurs in this application, so no FTC AI disclosure was added. Re-check if AI features are introduced."
+  ]
+}
