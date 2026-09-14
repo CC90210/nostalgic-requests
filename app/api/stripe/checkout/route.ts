@@ -12,6 +12,23 @@ const checkoutSchema = z.object({
   requesterEmail: z.string().email().max(254).optional().or(z.literal("")),
 });
 
+/**
+ * Short, stable tag for the one checkout parameter a fan can change between
+ * attempts. Hashing keeps the address itself out of Stripe's idempotency-key
+ * log while still giving a corrected email a distinct key. FNV-1a: not a
+ * security hash, and it does not need to be — a collision would only reuse a
+ * session for the same request id.
+ */
+function attemptTag(email: string | undefined): string {
+  let h = 0x811c9dc5;
+  const s = String(email ?? "");
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for") || "unknown";
@@ -110,6 +127,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Payment setup incomplete for this event." }, { status: 400 });
     }
 
+    // The one checkout parameter the fan can change between attempts. Kept in a
+    // variable because the idempotency key below has to vary with it.
+    const customerEmail = requesterEmail || reqData.requester_email || undefined;
+
     const amount = reqData.amount_paid;
     let description = "Song Request";
     if (reqData.has_priority) description += " + Priority";
@@ -139,7 +160,7 @@ export async function POST(request: NextRequest) {
       },
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/e/${eventSlug}/success?session_id={CHECKOUT_SESSION_ID}&song=${encodeURIComponent(reqData.song_title)}&artist=${encodeURIComponent(reqData.song_artist)}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/e/${eventSlug}`,
-      customer_email: requesterEmail || reqData.requester_email || undefined,
+      customer_email: customerEmail,
     };
 
     if (!isPlatformOwnerCheck) {
@@ -152,10 +173,18 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Scoped to the request: a double-submit returns the SAME session rather
-      // than minting a second one the fan could also pay.
+      // Scoped to the request AND to the parameters that can differ between
+      // attempts. A double-submit with the same details still returns the SAME
+      // session rather than minting a second one the fan could also pay.
+      //
+      // Keyed on requestId alone, a fan who mistyped their email and corrected
+      // it hit Stripe's "same idempotency key, different parameters" rejection,
+      // which the catch below flattened into "Transaction initiation failed" —
+      // and there was no way to ever pay for that request. Varying the key with
+      // the email lets the corrected attempt through; is_paid above and the
+      // webhook still prevent paying twice.
       const session = await stripe.checkout.sessions.create(sessionParams, {
-        idempotencyKey: `checkout_${requestId}`,
+        idempotencyKey: `checkout_${requestId}_${attemptTag(customerEmail)}`,
       });
       return NextResponse.json({ url: session.url, sessionId: session.id });
     } catch (stripeErr: any) {

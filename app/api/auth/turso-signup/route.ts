@@ -18,11 +18,13 @@
  * self-heal path that "fixes" it names the DJ "New DJ". Both inserts therefore
  * go through one libSQL write batch: both land or neither does.
  *
- * There is no unique index on _supabase_auth_users.email, so the duplicate
- * check below is the only thing standing between a user and two accounts on one
- * address. It is a check-then-insert and therefore racy under concurrent
- * signups on the same address; the paired unique index on lower(email) is what
- * actually closes that, and is applied alongside this route.
+ * The duplicate check below is a check-then-insert and so cannot be relied on
+ * alone. What actually closes the race is the unique index on lower(email),
+ * applied to the live database on 2026-09-13 and verified there by watching it
+ * reject a colliding insert. The check stays because it gives the ordinary
+ * duplicate a clear 409 without burning a bcrypt hash; the catch at the bottom
+ * turns the index's constraint error into that same 409 for the race that gets
+ * past it.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@libsql/client/web";
@@ -183,9 +185,22 @@ export async function POST(req: NextRequest) {
 
     return res;
   } catch (err: any) {
+    const msg = String(err?.message ?? err);
+
+    // Losing the race against the unique index is not a server error — it means
+    // someone registered this address a moment ago. Answer exactly as the
+    // ordinary duplicate path does. Without this branch the index turns the
+    // loser of a race into a 500, telling a would-be DJ their account could not
+    // be created when in fact one now exists on that address.
+    if (/SQLITE_CONSTRAINT|UNIQUE constraint failed/i.test(msg)) {
+      console.warn("[Turso Signup] Unique constraint hit (duplicate or race):", msg);
+      return NextResponse.json(
+        { error: "This email is already registered. Please sign in." }, { status: 409 });
+    }
+
     // Log the detail, return a generic message: the raw driver error names
     // tables and constraints the caller has no business seeing.
-    console.error("[Turso Signup] Failed:", err?.message ?? err);
+    console.error("[Turso Signup] Failed:", msg);
     return NextResponse.json({ error: "Could not create your account." }, { status: 500 });
   }
 }

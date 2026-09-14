@@ -1,7 +1,7 @@
 import { adminData as supabase } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-user";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 
 /**
  * Where Stripe sends the DJ back at the end of Express onboarding.
@@ -23,7 +23,10 @@ import Stripe from "stripe";
  * `account.updated` webhook is what actually keeps the flag current, since most
  * DJs finish verification long after they have closed this tab.
  */
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+// The Stripe client is built inside the handler via getStripe(). Constructed at
+// module scope it ran during `next build`'s page-data collection, where there is
+// no STRIPE_SECRET_KEY, and threw — the identical fault that failed the build at
+// api/stripe/webhook.
 
 // The old fallback pointed at a Vercel domain this app no longer deploys to.
 function baseUrl(): string {
@@ -58,7 +61,7 @@ export async function GET(_req: NextRequest) {
       return NextResponse.redirect(`${base}/dashboard/settings?error=no_account_found`);
     }
 
-    const account = await stripe.accounts.retrieve(profile.stripe_account_id);
+    const account = await getStripe().accounts.retrieve(profile.stripe_account_id);
     const ready = Boolean(account.charges_enabled && account.payouts_enabled);
 
     // The live column is INTEGER: write 1/0 rather than a boolean and let the

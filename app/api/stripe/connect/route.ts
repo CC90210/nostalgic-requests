@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-user";
 import { isPlatformOwner } from "@/lib/platform";
+import { getStripe } from "@/lib/stripe";
 
 /**
  * Stripe Connect onboarding for the SIGNED-IN DJ.
@@ -82,9 +83,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Initialize Stripe Server-Side
-    const Stripe = require("stripe");
-    const stripeServer = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    // Initialize Stripe Server-Side.
+    //
+    // Was `require("stripe")` followed by `new Stripe(...)`. Because it sits
+    // inside the handler it never broke the build the way the webhook and
+    // connect/return copies did — but it is the same defect class, it bypasses
+    // the apiVersion every other route is pinned to, and a CommonJS require is a
+    // poor fit for the Workers bundle. getStripe() is what this repo's
+    // CLAUDE.md mandates: "never call new Stripe() directly".
+    const stripeServer = getStripe();
 
     let accountId = profile.stripe_account_id;
 

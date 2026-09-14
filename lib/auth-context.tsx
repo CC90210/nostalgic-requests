@@ -173,6 +173,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(b.profile ?? null);
       return { error: null, profile: b.profile };
     }
+    // SUPABASE-AUTH PATH — not reachable in production, which runs
+    // NEXT_PUBLIC_EMPIRE_AUTH_BACKEND=turso. That is confirmed in the live
+    // client bundle, where the comparison above is constant-folded away.
+    //
+    // KNOWN HAZARD if that flag is ever flipped back, raised by the Codex audit
+    // of 2026-09-13 and deliberately left unfixed rather than repaired blind on
+    // a dead path: with Supabase email confirmation enabled, signUp() returns a
+    // user but NO session. /api/auth/create-profile authenticates through
+    // requireUser(), so it answers 401, this branch reports "Failed to save
+    // profile" and signs the user out — while the auth account already exists.
+    // The address is then taken and its owner has no profile. Before re-enabling
+    // this path, profile creation must be deferred until after confirmation.
     const supabase = getSupabaseClient();
 
     const { data: authData, error: authError } = await supabase.auth.signUp({

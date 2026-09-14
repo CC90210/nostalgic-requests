@@ -1,21 +1,48 @@
 ﻿import { adminData as supabase } from "@/lib/supabase-admin";
 import { headers } from "next/headers";
 import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+/**
+ * The Stripe client is built INSIDE the handler, never at module scope.
+ *
+ * `new Stripe(process.env.STRIPE_SECRET_KEY as string)` used to run right here,
+ * at import time. `next build` imports every route to collect its page data, and
+ * that step has no STRIPE_SECRET_KEY, so the constructor threw "Neither apiKey
+ * nor config.authenticator provided" and took the whole build down with it.
+ * `getStripe()` defers construction to the first request — which is also what
+ * this repo's CLAUDE.md already required ("never call new Stripe() directly").
+ *
+ * The `Stripe` import above is kept for its TYPES only (Stripe.Event,
+ * Stripe.Charge, Stripe.Account, Stripe.Checkout.Session).
+ */
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
 export async function POST(req: Request) {
     const body = await req.text();
     const signature = (await headers()).get("stripe-signature") as string;
 
+    if (!webhookSecret) {
+        console.error("STRIPE_WEBHOOK_SECRET is not set");
+        return new Response("Webhook configuration error", { status: 500 });
+    }
+
+    // A missing secret key is a CONFIGURATION fault and answers 500, so Stripe
+    // keeps the event in its retry queue. Letting it fall through to the
+    // signature catch below would answer 400, which Stripe treats as final:
+    // every payment that arrived during the outage would be dropped silently
+    // and never retried.
+    let stripe: Stripe;
+    try {
+        stripe = getStripe();
+    } catch (err: any) {
+        console.error("[Webhook] Stripe client unavailable:", err?.message ?? err);
+        return new Response("Webhook configuration error", { status: 500 });
+    }
+
     let event: Stripe.Event;
 
     try {
-        if (!webhookSecret) {
-            console.error("STRIPE_WEBHOOK_SECRET is not set");
-            return new Response("Webhook configuration error", { status: 500 });
-        }
         event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } catch (err: any) {
         console.error(`Webhook Signature Error: ${err.message}`);
