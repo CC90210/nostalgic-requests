@@ -1,6 +1,5 @@
 ﻿import { adminData as supabase } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { calculateTotal, PricingConfig, DEFAULT_PRICING } from "@/lib/pricing";
 import { z } from "zod";
 import { rateLimit } from "@/lib/rate-limit";
@@ -66,8 +65,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Event not found" }, { status: 404 });
         }
 
-        if (event.status === "draft") {
-            return NextResponse.json({ error: "This event is not accepting requests yet." }, { status: 403 });
+        // Only a LIVE event takes requests. This used to reject "draft" alone,
+        // which let an event the DJ had already ENDED keep taking paid
+        // requests — money charged for a song nobody was ever going to play.
+        if (event.status !== "live") {
+            return NextResponse.json({
+                error: event.status === "ended"
+                    ? "This event has ended and is no longer taking requests."
+                    : "This event is not accepting requests yet.",
+            }, { status: 403 });
         }
 
         // 3. Calculate Price securely on Server
@@ -80,7 +86,19 @@ export async function POST(req: NextRequest) {
             price_guaranteed: Number(event.price_guaranteed) || DEFAULT_PRICING.price_guaranteed,
         };
 
-        const totalAmount = calculateTotal({ package: pkg, addons }, config);
+        // Each add-on is optional in the schema, so zod hands back
+        // `boolean | undefined` where OrderDetails wants a plain boolean.
+        // Coerce here rather than loosening the shared pricing type — this is
+        // the money calculation, and the payload below already normalizes the
+        // same three flags the same way.
+        const totalAmount = calculateTotal({
+            package: pkg,
+            addons: {
+                priority: !!addons.priority,
+                shoutout: !!addons.shoutout,
+                guaranteedNext: !!addons.guaranteedNext,
+            },
+        }, config);
 
         // 4. Flatten Songs
         const songTitles = songs.map(s => s.title).join(" | ").substring(0, 1000);

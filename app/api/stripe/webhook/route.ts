@@ -1,8 +1,6 @@
 ﻿import { adminData as supabase } from "@/lib/supabase-admin";
 import { headers } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
-import { NextResponse } from "next/server";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
@@ -62,8 +60,13 @@ export async function POST(req: Request) {
             .single();
 
         if (updateError) {
-            console.error("? Failed to update request:", updateError);
-            return new Response("Update Failed", { status: 200 });
+            // 5xx, NOT 200. A 200 tells Stripe the event was handled and it
+            // never retries — the fan's card was charged and the request stayed
+            // unpaid in our database, invisible to the DJ. A 500 puts the event
+            // back in Stripe's retry queue, and the idempotency check above
+            // makes the replay safe.
+            console.error("[Webhook] Failed to mark request paid:", updateError.message);
+            return new Response("Update Failed", { status: 500 });
         }
 
         // Scoped Lead Logic (Multi-Tenant)
@@ -88,15 +91,20 @@ export async function POST(req: Request) {
                     .eq("phone", updatedReq.requester_phone)
                     .maybeSingle();
 
+                // The lead row is a nice-to-have built on top of an already
+                // successful payment, so its failure must not fail the webhook
+                // and trigger a retry of the payment write. It IS logged —
+                // a silently dropped lead looks identical to a DJ with no fans.
                 if (existingLead) {
-                    await supabase.from("leads").update({
+                    const { error: leadErr } = await supabase.from("leads").update({
                         total_spent: (Number(existingLead.total_spent) || 0) + amount,
                         request_count: (existingLead.request_count || 0) + 1,
                         last_seen_at: new Date().toISOString(),
                         email
                     }).eq("id", existingLead.id);
+                    if (leadErr) console.error("[Webhook] Lead update failed:", leadErr.message);
                 } else {
-                    await supabase.from("leads").insert({
+                    const { error: leadErr } = await supabase.from("leads").insert({
                         user_id: djId,
                         name: updatedReq.requester_name,
                         phone: updatedReq.requester_phone,
@@ -106,6 +114,7 @@ export async function POST(req: Request) {
                         first_seen_at: new Date().toISOString(),
                         last_seen_at: new Date().toISOString()
                     });
+                    if (leadErr) console.error("[Webhook] Lead insert failed:", leadErr.message);
                 }
             }
         }
@@ -120,7 +129,32 @@ export async function POST(req: Request) {
             .update({ status: "refunded", is_paid: false })
             .eq("stripe_payment_id", paymentIntentId);
 
-        if (error) console.error("Failed to process refund", error);
+        if (error) {
+            console.error("[Webhook] Failed to process refund:", error.message);
+            return new Response("Update Failed", { status: 500 });
+        }
+    }
+
+    // 3. Connect onboarding state.
+    //
+    // Without this, the ONLY thing that ever set stripe_onboarding_complete was
+    // the DJ physically landing back on the return URL. Close the tab at the end
+    // of Stripe's flow — or finish verification hours later, which is the normal
+    // case — and the flag stayed 0 forever, so checkout kept telling every fan
+    // "This DJ hasn't set up payments yet" for a DJ who was fully set up.
+    else if (event.type === "account.updated") {
+        const account = event.data.object as Stripe.Account;
+        const ready = Boolean(account.charges_enabled && account.payouts_enabled);
+
+        // The live column is INTEGER — write 1/0, not a boolean.
+        const { error } = await supabase.from("dj_profiles")
+            .update({ stripe_onboarding_complete: ready ? 1 : 0 })
+            .eq("stripe_account_id", account.id);
+
+        if (error) {
+            console.error("[Webhook] account.updated write failed:", error.message);
+            return new Response("Update Failed", { status: 500 });
+        }
     }
 
     return new Response("Received", { status: 200 });

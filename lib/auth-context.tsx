@@ -13,6 +13,13 @@ interface DJProfile {
   phone: string | null;
   bio: string | null;
   profile_image_url: string | null;
+  // The payout pair. Two dashboard screens already gated their UI on
+  // stripe_onboarding_complete while this type claimed the field did not exist;
+  // only next.config's ignoreBuildErrors kept that from failing the build.
+  // It is an INTEGER column (1/0), not a boolean — read it for truthiness, and
+  // never compare it to `true`.
+  stripe_account_id: string | null;
+  stripe_onboarding_complete: number | boolean | null;
 }
 
 interface AuthContextType {
@@ -140,11 +147,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const signUp = async (email: string, password: string, djName: string, phone: string, fullName?: string): Promise<{ error: any; profile?: DJProfile }> => {
-    // Turso auth mode: signUp would create a SUPABASE auth user that Turso-mode
-    // login cannot see — a stranded account. Gated until the Turso signup path
-    // ships (same policy as command-center's Google signup).
+    // Turso auth mode: the auth user, its password hash and the dj_profiles row
+    // are created together, server-side, by /api/auth/turso-signup, which also
+    // sets the session cookie. No Supabase auth user is involved, so nothing is
+    // stranded. (This branch replaces the maintenance gate that shipped with the
+    // Turso cutover; while it was live the build folded signUp down to an
+    // unconditional error and no account could be created at all.)
     if (process.env.NEXT_PUBLIC_EMPIRE_AUTH_BACKEND === "turso") {
-      return { error: { message: "New signups are temporarily paused for maintenance — existing accounts sign in normally." } };
+      let r: Response;
+      try {
+        r = await fetch("/api/auth/turso-signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, djName, phone, fullName: fullName || null }),
+        });
+      } catch {
+        return { error: { message: "Network error" } };
+      }
+      const b = (await r.json().catch(() => ({}))) as
+        { user?: { id: string; email: string }; profile?: DJProfile; error?: string };
+      if (!r.ok || !b.user) {
+        return { error: { message: b.error || "Account creation failed" } };
+      }
+      setUser(b.user as any);
+      setProfile(b.profile ?? null);
+      return { error: null, profile: b.profile };
     }
     const supabase = getSupabaseClient();
 

@@ -1,7 +1,6 @@
 ﻿import { adminData as supabase } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { rateLimit } from "@/lib/rate-limit";
 import { isPlatformOwner } from "@/lib/platform";
@@ -42,34 +41,60 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
 
-    const { data: eventData } = await supabase
+    // A request that is already paid must never reach Stripe a second time.
+    // Without this the same requestId could be checked out repeatedly and the
+    // fan charged more than once for one song.
+    if (reqData.is_paid) {
+      return NextResponse.json(
+        { error: "This request has already been paid for." },
+        { status: 409 }
+      );
+    }
+
+    const { data: eventData, error: eventError } = await supabase
       .from("events")
       .select("user_id")
       .eq("id", reqData.event_id)
       .single();
+
+    if (eventError || !eventData) {
+      console.error("[Checkout API] Event lookup failed:", eventError?.message);
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    }
 
     let destinationAccount = null;
     let isPlatformOwnerCheck = false;
     let djEmail = "";
 
     if (eventData?.user_id) {
-      const { data: userData } = await supabase.auth.admin.getUserById(eventData.user_id);
+      // The DJ's email and their payout state both live on dj_profiles, and one
+      // query answers both questions. This used to call
+      // supabase.auth.admin.getUserById() — Supabase Auth — which under the
+      // Turso data backend reaches the absent-Supabase proxy and THROWS, so
+      // checkout returned a 500 instead of a usable answer.
+      const { data: profile, error: profileError } = await supabase
+        .from("dj_profiles")
+        .select("email, stripe_account_id, stripe_onboarding_complete")
+        .eq("user_id", eventData.user_id)
+        .maybeSingle();
 
-      if (userData?.user?.email) {
-        djEmail = userData.user.email;
-        if (isPlatformOwner(djEmail)) {
-          isPlatformOwnerCheck = true;
-          destinationAccount = "PLATFORM_OWNER";
-        }
+      if (profileError) {
+        // The Turso client returns errors, it does not throw them. Discarding
+        // this error is what made a missing column look like a missing profile.
+        console.error("[Checkout API] Profile lookup failed:", profileError.message);
+        return NextResponse.json(
+          { error: "Could not start checkout. Please try again." },
+          { status: 500 }
+        );
+      }
+
+      djEmail = profile?.email || "";
+      if (djEmail && isPlatformOwner(djEmail)) {
+        isPlatformOwnerCheck = true;
+        destinationAccount = "PLATFORM_OWNER";
       }
 
       if (!isPlatformOwnerCheck) {
-        const { data: profile } = await supabase
-          .from("dj_profiles")
-          .select("stripe_account_id, stripe_onboarding_complete")
-          .eq("user_id", eventData.user_id)
-          .single();
-
         if (profile?.stripe_account_id && profile?.stripe_onboarding_complete) {
           destinationAccount = profile.stripe_account_id;
         } else {
@@ -127,7 +152,11 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const session = await stripe.checkout.sessions.create(sessionParams);
+      // Scoped to the request: a double-submit returns the SAME session rather
+      // than minting a second one the fan could also pay.
+      const session = await stripe.checkout.sessions.create(sessionParams, {
+        idempotencyKey: `checkout_${requestId}`,
+      });
       return NextResponse.json({ url: session.url, sessionId: session.id });
     } catch (stripeErr: any) {
       console.error("Stripe Session Error:", stripeErr);

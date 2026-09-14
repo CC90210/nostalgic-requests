@@ -146,7 +146,10 @@ export default function SettingsPage() {
   if (!user) return null;
 
   const isPlatformOwner = checkPlatformOwner(user.email);
-  const isStripeConnected = profile?.stripe_onboarding_complete || isPlatformOwner;
+  // `!!` because the column is an INTEGER: without it this value is 1 rather
+  // than true, and `{isStripeConnected && <…>}` would one day render a literal
+  // "0" into the page. The events screen already coerces the same way.
+  const isStripeConnected = !!profile?.stripe_onboarding_complete || isPlatformOwner;
   const isNewDJ = !profile?.dj_name || profile.dj_name === "New DJ";
 
   return (

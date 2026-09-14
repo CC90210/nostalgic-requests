@@ -32,30 +32,54 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Get Profile
-    let { data: profile } = await supabase
+    const initial = await supabase
       .from("dj_profiles")
       .select("stripe_account_id, email, dj_name")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
+
+    if (initial.error) {
+      // Turso returns errors, it never throws them. Discarding this made a
+      // failed query indistinguishable from a missing profile, which then sent
+      // a real DJ down the self-heal path and renamed them "New DJ".
+      console.error("[Connect] Profile lookup failed:", initial.error.message);
+      return NextResponse.json({ error: "Could not load your profile." }, { status: 500 });
+    }
+
+    let profile: any = initial.data;
 
     // SELF HEALING PROTOCOL
     if (!profile) {
       console.log(`[Connect] Profile missing for ${userId}. Initiating Self-Healing...`);
+      // INSERT, not upsert. An upsert keyed on user_id rewrites every column it
+      // is handed, so a racing second request would stamp the literal "New DJ"
+      // over a name the DJ had already chosen.
       const { data: newProfile, error: createError } = await supabase
         .from("dj_profiles")
-        .upsert({ 
-            user_id: userId, 
-            email: email || undefined, 
-            dj_name: "New DJ" 
-        }, { onConflict: "user_id" })
+        .insert({
+            user_id: userId,
+            email: email || undefined,
+            dj_name: "New DJ"
+        })
         .select()
         .single();
 
       if (createError) {
-        console.error("Self-healing failed:", createError);
-        return NextResponse.json({ error: "Failed to create profile automatically." }, { status: 500 });
+        // Losing the insert race is not a failure — re-read the winning row.
+        const { data: raced } = await supabase
+          .from("dj_profiles")
+          .select("stripe_account_id, email, dj_name")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (!raced) {
+          console.error("Self-healing failed:", createError.message);
+          return NextResponse.json({ error: "Failed to create profile automatically." }, { status: 500 });
+        }
+        profile = raced;
+      } else {
+        profile = newProfile;
       }
-      profile = newProfile;
     }
 
     // Initialize Stripe Server-Side
@@ -69,7 +93,10 @@ export async function POST(req: NextRequest) {
       try {
           const account = await stripeServer.accounts.create({
             type: "express",
-            country: "US", // Default
+            // Was hardcoded. Default is unchanged so nobody's behaviour shifts
+            // under them, but the platform account is CAD — onboarding a
+            // Canadian DJ needs this set, not a code change.
+            country: process.env.STRIPE_CONNECT_COUNTRY || "US",
             email: profile.email || undefined,
             capabilities: {
               card_payments: { requested: true }, // REQUIRED for transfers to work
@@ -78,14 +105,31 @@ export async function POST(req: NextRequest) {
             business_profile: {
               name: profile.dj_name || "DJ Platform User",
             },
+            // Lets the account.updated webhook find the owner directly.
+            metadata: { user_id: userId },
+          }, {
+            // A double-click used to mint a SECOND Express account and orphan
+            // the first. Keyed on the user, so a retry returns the same one.
+            idempotencyKey: `connect_account_${userId}`,
           });
           accountId = account.id;
 
           // Save to DB
-          await supabase
+          const { error: saveError } = await supabase
             .from("dj_profiles")
             .update({ stripe_account_id: accountId })
             .eq("user_id", userId);
+
+          if (saveError) {
+            // The account now exists at Stripe but we failed to record it.
+            // Stop: handing over an onboarding link for an account this
+            // platform has already forgotten wastes the DJ's whole signup.
+            console.error("[Connect] Failed to save stripe_account_id:", saveError.message);
+            return NextResponse.json(
+              { error: "Could not save your payment account. Please try again." },
+              { status: 500 }
+            );
+          }
 
       } catch (stripeErr: any) {
           console.error("Stripe Account Creation Failed:", stripeErr);
@@ -98,9 +142,12 @@ export async function POST(req: NextRequest) {
 
     // 3. Create Account Link (Onboarding)
     try {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
-        const refreshUrl = `${appUrl}/dashboard/settings?onboarding=canceled`; 
-        const returnUrl = `${appUrl}/api/stripe/connect/return?user_id=${userId}`; 
+        // The old fallback pointed at a Vercel domain this app no longer
+        // deploys to; the site runs on Cloudflare Workers at its own domain.
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgicrequests.com";
+        const refreshUrl = `${appUrl}/dashboard/settings?onboarding=canceled`;
+        // No user_id in the URL any more — the return route reads the session.
+        const returnUrl = `${appUrl}/api/stripe/connect/return`;
 
         const accountLink = await stripeServer.accountLinks.create({
           account: accountId,

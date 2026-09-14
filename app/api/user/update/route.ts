@@ -24,36 +24,28 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { dj_name, full_name, phone, bio, profile_image_url } = body;
 
-        // 1. Fetch User Email (Crucial for new Profile creation)
-        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
+        // 1. Email comes from the session.
+        //
+        // This used to call supabase.auth.admin.getUserById(). Under the Turso
+        // backend that reaches the absent-Supabase proxy, which THROWS, so
+        // every single profile save returned 500 before touching the database.
+        const email = auth.ctx.user.email;
 
-        if (userError || !userData.user) {
-            throw new Error("Failed to fetch user auth data");
+        if (!email) {
+            return NextResponse.json({ error: "Session has no email" }, { status: 400 });
         }
 
-        const email = userData.user.email;
-
-        // 2. Generate Username fallback (if needed for new profiles)
-        // Clean DJ name or use email prefix
-        const baseName = (dj_name || full_name || email?.split("@")[0] || "dj").toLowerCase().replace(/[^a-z0-9]/g, "");
-        const username = `${baseName}-${Math.floor(Math.random() * 1000)}`;
-
-        // 3. Upsert Profile Row (DB)
+        // 2. Upsert Profile Row (DB)
         const { error: dbError } = await supabase.from("dj_profiles")
             .upsert({
                 user_id: userId,
                 email: email, // <-- FIX: Include Email
                 dj_name,
                 full_name,
-                username: username, // Fallback for new rows (won't overwrite if we don't map it in conflict, wait... upsert overwrites all usually)
-                // Actually, strict upsert in supabase js replaces fields provided. 
-                // We should probably NOT overwrite username if it exists? 
-                // But for "Recovery", we just want it to work. 
-                // To be safe, we only provide username if strictly necessary? 
-                // Let's just include it. If they want to change username, that's a different flow.
-                // Re-inserted username might overwrite. 
-                // Better approach: Don't overwrite username if it exists. 
-                // But for the "null value" error, we focus on EMAIL.
+                // `username` is deliberately NOT written here. It used to be
+                // regenerated as "<name>-<random 0-999>" on every single save,
+                // so a DJ's username changed each time they edited their bio.
+                // Nothing in this codebase reads the column back.
                 phone,
                 bio,
                 profile_image_url,
@@ -66,15 +58,9 @@ export async function POST(req: NextRequest) {
             throw dbError;
         }
 
-        // 4. Update Auth Metadata (Sync for Sidebar)
-        const { error: authError } = await supabase.auth.admin.updateUserById(
-            userId,
-            { user_metadata: { dj_name, full_name, profile_image_url } }
-        );
-
-        if (authError) {
-             console.error("Auth Metadata Update Failed:", authError);
-        }
+        // Step 4 used to mirror these fields into Supabase auth user_metadata.
+        // Under Turso auth there is no Supabase auth user to mirror into and
+        // the call throws; dj_profiles is the only record the UI reads anyway.
 
         return NextResponse.json({ success: true });
     } catch(err: any) {
@@ -84,4 +70,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Could not update profile" }, { status: 500 });
     }
 }
-// Trigger Vercel Deploy

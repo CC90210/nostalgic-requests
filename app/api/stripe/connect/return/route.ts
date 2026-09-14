@@ -1,51 +1,85 @@
-﻿import { adminData as supabase } from "@/lib/supabase-admin";
+import { adminData as supabase } from "@/lib/supabase-admin";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireUser } from "@/lib/require-user";
 import Stripe from "stripe";
 
-
+/**
+ * Where Stripe sends the DJ back at the end of Express onboarding.
+ *
+ * IDENTITY COMES FROM THE SESSION. This route used to take `user_id` straight
+ * off the query string, so opening
+ *   /api/stripe/connect/return?user_id=<somebody else>
+ * marked THAT DJ's payouts as ready. Checkout trusts exactly this flag when it
+ * decides where a fan's money goes, so a query parameter anyone could edit sat
+ * directly upstream of a payment destination.
+ *
+ * READINESS IS charges_enabled AND payouts_enabled. It used to accept
+ * `details_submitted` as good enough, but that only means the forms were
+ * submitted — Stripe can still be holding the account for verification. Marking
+ * such an account ready sends fans to a checkout that fails at payment time,
+ * which is a worse failure than telling the DJ onboarding is still pending.
+ *
+ * This handler is now a convenience, not the source of truth: the
+ * `account.updated` webhook is what actually keeps the flag current, since most
+ * DJs finish verification long after they have closed this tab.
+ */
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
-export async function GET(req: NextRequest) {
+// The old fallback pointed at a Vercel domain this app no longer deploys to.
+function baseUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL || "https://nostalgicrequests.com";
+}
+
+export async function GET(_req: NextRequest) {
+  const base = baseUrl();
+
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("user_id");
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
-
-    if (!userId) {
-      return NextResponse.redirect(`${appUrl}/dashboard/settings?error=missing_user`);
+    const auth = await requireUser();
+    if (!auth.ok) {
+      // This is a browser redirect target, not an API call — a JSON 401 would
+      // render as raw text in the DJ's tab. Send them to sign in instead.
+      return NextResponse.redirect(`${base}/login`);
     }
 
-    // 1. Fetch Profile
-    const { data: profile } = await supabase
-        .from("dj_profiles")
-        .select("stripe_account_id")
-        .eq("user_id", userId)
-        .single();
-    
+    const userId = auth.ctx.user.id;
+
+    const { data: profile, error: profileError } = await supabase
+      .from("dj_profiles")
+      .select("stripe_account_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("[Connect Return] Profile lookup failed:", profileError.message);
+      return NextResponse.redirect(`${base}/dashboard/settings?error=server_error`);
+    }
+
     if (!profile?.stripe_account_id) {
-         return NextResponse.redirect(`${appUrl}/dashboard/settings?error=no_account_found`);
+      return NextResponse.redirect(`${base}/dashboard/settings?error=no_account_found`);
     }
 
-    // 2. Verify with Stripe
     const account = await stripe.accounts.retrieve(profile.stripe_account_id);
+    const ready = Boolean(account.charges_enabled && account.payouts_enabled);
 
-    // Allow if charges enabled OR if they submitted details (pending verification)
-    if (account.charges_enabled || account.details_submitted) {
-        await supabase
-            .from("dj_profiles")
-            .update({ stripe_onboarding_complete: true })
-            .eq("user_id", userId);
-            
-        return NextResponse.redirect(`${appUrl}/dashboard/settings?onboarding=success`);
-    } else {
-        // They likely clicked "Skip this for now" or just closed the window
-        return NextResponse.redirect(`${appUrl}/dashboard/settings?onboarding=incomplete`);
+    // The live column is INTEGER: write 1/0 rather than a boolean and let the
+    // value round-trip as itself instead of as a driver's best guess.
+    const { error: updateError } = await supabase
+      .from("dj_profiles")
+      .update({ stripe_onboarding_complete: ready ? 1 : 0 })
+      .eq("user_id", userId);
+
+    if (updateError) {
+      // Unchecked before. A failed write here left the DJ looking at a success
+      // page while checkout carried on refusing their fans' money.
+      console.error("[Connect Return] Readiness write failed:", updateError.message);
+      return NextResponse.redirect(`${base}/dashboard/settings?error=server_error`);
     }
 
+    return NextResponse.redirect(
+      `${base}/dashboard/settings?onboarding=${ready ? "success" : "incomplete"}`
+    );
   } catch (error: any) {
-    console.error("Return API Error:", error);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nostalgic-requests.vercel.app";
-    return NextResponse.redirect(`${appUrl}/dashboard/settings?error=server_error`);
+    console.error("[Connect Return] Error:", error?.message ?? error);
+    return NextResponse.redirect(`${base}/dashboard/settings?error=server_error`);
   }
 }

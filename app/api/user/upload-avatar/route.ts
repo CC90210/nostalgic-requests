@@ -1,5 +1,4 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { adminData as supabase } from "@/lib/supabase-admin";
 import { r2Configured } from "@/lib/r2-storage";
 

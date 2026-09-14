@@ -1,20 +1,41 @@
 ﻿import { getAdminData } from "@/lib/supabase-admin";
-import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/require-user";
 import { getResend } from "@/lib/resend";
 import WelcomeEmail from "@/emails/WelcomeEmail";
 
+/**
+ * Create the SIGNED-IN user's own profile.
+ *
+ * Identity comes from the session. This handler previously took `user_id` and
+ * `email` straight off the request body and upserted through the service-role
+ * client with no session check, so an unauthenticated POST could overwrite any
+ * DJ's profile row — name, phone, email — by guessing their user id. Its
+ * siblings (get-profile, user/update, stripe/connect) were hardened on
+ * 2026-08-16; this one was missed.
+ *
+ * The body is still parsed, and its profile CONTENT is still used, but the
+ * identity fields in it are ignored.
+ *
+ * Note: under Turso auth, signup creates the profile server-side in the same
+ * transaction as the auth user (see api/auth/turso-signup), so this route is
+ * now only the Supabase-auth path's profile step.
+ */
 export async function POST(request: NextRequest) {
   console.log("[Create Profile API] Request received");
-  
+
   try {
+    const auth = await requireUser();
+    if (!auth.ok) return auth.res;
+
+    const user_id = auth.ctx.user.id;
+    const email = auth.ctx.user.email;
+
     const body = await request.json();
-    const { user_id, email, dj_name, phone, full_name } = body;
+    const { dj_name, phone, full_name } = body;
 
-    console.log("[Create Profile API] Data:", { user_id, email, dj_name, phone });
-
-    if (!user_id || !email) {
-      return NextResponse.json({ error: "Missing user_id or email" }, { status: 400 });
+    if (!email) {
+      return NextResponse.json({ error: "Session has no email" }, { status: 400 });
     }
 
     const supabaseAdmin = getAdminData();
