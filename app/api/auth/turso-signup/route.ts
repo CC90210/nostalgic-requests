@@ -84,10 +84,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: `Password must be at least ${MIN_PASSWORD} characters.` }, { status: 400 });
   }
-  if (password.length > 200) {
-    // bcrypt only reads the first 72 bytes; a megabyte password is a CPU
-    // exhaustion vector on a Worker, not a stronger secret.
-    return NextResponse.json({ error: "Password is too long." }, { status: 400 });
+  // Two guards, cheapest first. The character check bails out before we bother
+  // encoding a megabyte string (CPU/memory exhaustion on a Worker, not a
+  // stronger secret). The byte check is the one that matters for correctness.
+  //
+  // bcrypt hashes the first 72 BYTES and silently discards everything after, so
+  // two passwords sharing a 72-byte prefix produce the same hash and authenticate
+  // each other. The previous limit counted CHARACTERS at 200, which allowed
+  // exactly that — and multibyte passwords reach the cliff far sooner than the
+  // number on screen suggests: 18 four-byte emoji are already 72 bytes.
+  // Raised by the Codex audit of 2026-09-13.
+  //
+  // TextEncoder rather than Buffer: this has to hold in the Workers bundle,
+  // where a Node Buffer global is a dependency worth not taking on.
+  if (password.length > 200 || new TextEncoder().encode(password).length > 72) {
+    return NextResponse.json(
+      { error: "Password is too long — please use 72 characters or fewer." },
+      { status: 400 });
   }
   if (!djName) {
     return NextResponse.json({ error: "Enter your DJ name." }, { status: 400 });
